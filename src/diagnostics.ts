@@ -45,7 +45,7 @@ export class InkDiagnosticsModal extends Modal {
 			[
 				"Pen down to ink on screen",
 				canvas.samples
-					? `${canvas.firstPaintMs.toFixed(1)} ms avg, ${canvas.worstFirstPaintMs.toFixed(1)} ms worst (${canvas.samples} strokes)`
+					? `${canvas.firstPaintMs.toFixed(1)} ms avg, ${canvas.worstFirstPaintMs.toFixed(1)} ms worst (last ${canvas.samples} sampled)`
 					: "draw a few strokes first, then reopen this",
 			],
 			[
@@ -66,6 +66,12 @@ export class InkDiagnosticsModal extends Modal {
 			["Paint one frame of ink", `${canvas.paintMs.toFixed(2)} ms`],
 			["Full redraw of every stroke", `${canvas.redrawMs.toFixed(1)} ms`],
 			["Serialise the page", `${serializeMs.toFixed(1)} ms`],
+			[
+				"Write the page to disk",
+				this.view.saveCount
+					? `${this.view.lastSaveMs.toFixed(0)} ms last, ${this.view.maxSaveMs.toFixed(0)} ms worst (${this.view.saveCount} saves)`
+					: "not saved yet",
+			],
 			["Page size on disk", `${(text.length / 1024).toFixed(1)} KB`],
 			[
 				"Pen contacts vs strokes kept",

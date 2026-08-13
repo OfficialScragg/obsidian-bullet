@@ -89,6 +89,11 @@ export class BulletView extends TextFileView {
 	 * are counted and reported.
 	 */
 	renderLog: string[] = [];
+
+	/** How long writing the page to disk actually takes. Never measured until now. */
+	saveCount = 0;
+	lastSaveMs = 0;
+	maxSaveMs = 0;
 	private openedAt = performance.now();
 
 	constructor(leaf: WorkspaceLeaf, plugin: BulletPlugin) {
@@ -145,6 +150,22 @@ export class BulletView extends TextFileView {
 		this.model = parseNote(data);
 		this.applyDefaults();
 		this.render();
+	}
+
+	/**
+	 * Timed, because serialising the page is only half of a save: the write
+	 * itself goes through Obsidian's file layer and, on a synced vault, out to
+	 * the network. On a page this size that is the one cost never measured.
+	 */
+	async save(clear?: boolean): Promise<void> {
+		const started = performance.now();
+		try {
+			await super.save(clear);
+		} finally {
+			this.lastSaveMs = performance.now() - started;
+			this.maxSaveMs = Math.max(this.maxSaveMs, this.lastSaveMs);
+			this.saveCount++;
+		}
 	}
 
 	clear(): void {

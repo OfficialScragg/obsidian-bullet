@@ -24,7 +24,7 @@ Object.assign(HTMLElement.prototype, {
 });
 
 import { InkLayer } from './inklayer.mjs';
-import { encodeInk, decodeInk } from './ink.mjs';
+import { encodeInk, decodeInk, simplify } from './ink.mjs';
 
 const log = [];
 let failures = 0;
@@ -85,7 +85,8 @@ async function drawLine(y, n = 30, id = pid) {
   check('one stroke recorded', ink.getStrokes().length, 1);
 
   const pts = ink.getStrokes()[0].points;
-  check('stroke keeps its points', pts.length > 25 && pts.length <= 31, true);
+  check('stroke keeps its ends', pts.length >= 2, true);
+  check('a straight line needs only its ends', pts.length, 2);
   const toInk = px => px / (stage.clientWidth / 1000);
   near('first point x maps to ink space', pts[0].x, toInk(100), 2);
   near('last point x maps to ink space', pts[pts.length - 1].x, toInk(340), 4);
@@ -95,7 +96,7 @@ async function drawLine(y, n = 30, id = pid) {
   pid = 2;
   await drawLine(300, 20, 2);
   check('lifting the pen ends the stroke', ink.getStrokes().length, 2);
-  check('second stroke is its own', ink.getStrokes()[1].points.length > 15, true);
+  check('second stroke is its own', ink.getStrokes()[1].points.length >= 2, true);
   check('save fired again', changes, 2);
 
   // undo / redo
@@ -118,7 +119,7 @@ async function drawLine(y, n = 30, id = pid) {
   check('round trip keeps stroke count', decoded.length, ink.getStrokes().length);
   check('round trip keeps point count',
     decoded.map(s => s.points.length), ink.getStrokes().map(s => s.points.length));
-  near('round trip keeps geometry', decoded[0].points[3].x, ink.getStrokes()[0].points[3].x, 0.11);
+  near('round trip keeps geometry', decoded[0].points[1].x, ink.getStrokes()[0].points[1].x, 0.11);
   check('ink space is width independent', Math.round(pts[pts.length-1].x) <= 1000, true);
 
   // a tap with no movement must still leave a mark
@@ -165,7 +166,7 @@ async function drawLine(y, n = 30, id = pid) {
 
   check('palm does not break the stroke', ink.getStrokes().length, strokesBeforePalm + 1);
   const palmStroke = ink.getStrokes()[ink.getStrokes().length - 1];
-  check('pen kept drawing through the palm', palmStroke.points.length >= 4, true);
+  check('pen kept drawing through the palm', palmStroke.points.length >= 2, true);
   check('the stroke reached its end', Math.round(palmStroke.points[palmStroke.points.length-1].x), Math.round(toInk(220)));
   check('the canvas kept pointer events', canvas.style.pointerEvents, 'auto');
 
@@ -238,6 +239,34 @@ async function drawLine(y, n = 30, id = pid) {
   check('pointer log records commits', /stroke committed/.test(trace), true);
   check('pointer log records rejected palms', /palm|pan start/.test(trace), true);
   check('pointer log is bounded', ink.getTrace().length <= 120, true);
+
+  // --- simplification must not move the line ------------------------------
+  const dense = [];
+  for (let i = 0; i <= 400; i++) {
+    const t = i / 400;
+    dense.push({ x: 100 + t * 600, y: 300 + Math.sin(t * 6) * 90, p: 0.5 });
+  }
+  const thin = simplify(dense, 0.8);
+  check('simplify drops most points', thin.length < dense.length / 3, true);
+  check('simplify keeps the first point', thin[0].x, dense[0].x);
+  check('simplify keeps the last point', thin[thin.length-1].x, dense[dense.length-1].x);
+
+  // every original point must still sit within tolerance of the kept line
+  let worst = 0;
+  for (const p of dense) {
+    let best = Infinity;
+    for (let i = 1; i < thin.length; i++) {
+      const a = thin[i-1], b = thin[i];
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const l2 = dx*dx + dy*dy;
+      let t = l2 === 0 ? 0 : ((p.x-a.x)*dx + (p.y-a.y)*dy) / l2;
+      t = Math.max(0, Math.min(1, t));
+      best = Math.min(best, Math.hypot(p.x-(a.x+t*dx), p.y-(a.y+t*dy)));
+    }
+    worst = Math.max(worst, best);
+  }
+  near('every point stays within tolerance', worst, 0, 0.8);
+  check('simplify leaves short strokes alone', simplify(dense.slice(0,2), 0.8).length, 2);
 
   // --- failures must survive being written over ---------------------------
   const anomaliesBefore = ink.getAnomalies().length;

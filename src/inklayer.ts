@@ -1,4 +1,4 @@
-import { INK_SPACE, encodeInk, paintStroke, strokeHitTest } from "./ink";
+import { INK_SPACE, encodeInk, paintStroke, simplify, strokeHitTest } from "./ink";
 import { InkPoint, Stroke } from "./types";
 
 export type InkMode = "off" | "draw" | "erase";
@@ -15,6 +15,9 @@ export interface InkLayerOptions {
 const MAX_DPR = 2;
 const ERASER_RADIUS = 9; // in ink-space units
 const SCROLL_FRICTION = 0.94;
+
+/** Simplification tolerance in ink space — under a pixel on a tablet. */
+const SIMPLIFY_EPSILON = 0.8;
 
 /**
  * The handwriting layer. Sits over the whole page; transparent and
@@ -214,7 +217,11 @@ export class InkLayer {
 			: "";
 		this.trace.push(`${at}ms ${detail} -> ${decision} [mode=${this.mode}]`);
 		if (this.trace.length > 120) this.trace.shift();
-		if (/ignored|CANCELLED|recovering|no movement/.test(decision)) {
+		// Only things that should have worked. A pen landing on the toolbar is
+		// correctly ignored, and flagging those buried the real faults.
+		if (
+			/CANCELLED|recovering|no movement|another pointer/.test(decision)
+		) {
 			this.flag(`${detail} -> ${decision}`);
 		}
 	}
@@ -675,6 +682,10 @@ export class InkLayer {
 		const finished = this.active;
 		this.active = null;
 		if (!finished || finished.points.length === 0) return;
+
+		// Thin the stroke now it is finished. The live one stayed at full
+		// resolution while it was being drawn.
+		finished.points = simplify(finished.points, SIMPLIFY_EPSILON);
 
 		this.strokes.push(finished);
 		this.strokeCount++;

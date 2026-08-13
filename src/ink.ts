@@ -189,3 +189,57 @@ export function pressureFactor(p: number): number {
 	if (!Number.isFinite(p) || p <= 0) return 1;
 	return 0.45 + p * 1.1;
 }
+
+/**
+ * Ramer-Douglas-Peucker. A pen reports far more points than the shape of a
+ * stroke needs — coalesced Apple Pencil samples run to hundreds per letter —
+ * and every one of them is carried in the note, written to disk on each save
+ * and walked on every redraw. Dropping the ones that sit on a line their
+ * neighbours already describe costs nothing visible.
+ *
+ * `epsilon` is in ink space, where 1000 spans the page width, so 0.8 is under
+ * a pixel on a tablet.
+ */
+export function simplify(points: InkPoint[], epsilon: number): InkPoint[] {
+	if (points.length < 3) return points;
+
+	const keep = new Uint8Array(points.length);
+	keep[0] = 1;
+	keep[points.length - 1] = 1;
+
+	// Iterative, so a long stroke cannot blow the stack.
+	const stack: [number, number][] = [[0, points.length - 1]];
+	while (stack.length) {
+		const [first, last] = stack.pop() as [number, number];
+		if (last <= first + 1) continue;
+
+		const a = points[first];
+		const b = points[last];
+		const dx = b.x - a.x;
+		const dy = b.y - a.y;
+		const lenSq = dx * dx + dy * dy;
+
+		let worst = 0;
+		let worstAt = -1;
+		for (let i = first + 1; i < last; i++) {
+			const p = points[i];
+			let t =
+				lenSq === 0 ? 0 : ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+			t = t < 0 ? 0 : t > 1 ? 1 : t;
+			const distance = Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+			if (distance > worst) {
+				worst = distance;
+				worstAt = i;
+			}
+		}
+
+		if (worst > epsilon && worstAt > 0) {
+			keep[worstAt] = 1;
+			stack.push([first, worstAt], [worstAt, last]);
+		}
+	}
+
+	const out: InkPoint[] = [];
+	for (let i = 0; i < points.length; i++) if (keep[i]) out.push(points[i]);
+	return out;
+}
