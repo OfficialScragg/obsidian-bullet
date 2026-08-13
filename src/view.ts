@@ -414,6 +414,9 @@ export class BulletView extends TextFileView {
 		});
 		this.iconButton(tools, "undo", "Undo stroke", () => this.ink?.undo());
 		this.iconButton(tools, "redo", "Redo stroke", () => this.ink?.redo());
+		this.iconButton(tools, "test", "Pen test on a bare canvas", () => {
+			this.plugin.openPenTest();
+		});
 		this.iconButton(tools, "gauge", "Ink performance", () => {
 			this.plugin.openDiagnostics(this);
 		});

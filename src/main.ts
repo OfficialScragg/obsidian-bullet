@@ -24,6 +24,7 @@ import {
 import { parseNote, serializeNote } from "./serialize";
 import { BulletView } from "./view";
 import { InkDiagnosticsModal } from "./diagnostics";
+import { PenTestModal } from "./pentest";
 import {
 	addDays,
 	formatDate,
@@ -118,6 +119,12 @@ export default class BulletPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: "pen-test",
+			name: "Pen test (bare canvas)",
+			callback: () => new PenTestModal(this.app).open(),
+		});
+
 		this.registerEvent(
 			this.app.workspace.on("layout-change", () => this.queueSync())
 		);
@@ -149,6 +156,10 @@ export default class BulletPlugin extends Plugin {
 
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
+	}
+
+	openPenTest(): void {
+		new PenTestModal(this.app).open();
 	}
 
 	openDiagnostics(view: BulletView): void {

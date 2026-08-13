@@ -1003,3 +1003,58 @@
 		color: var(--bl-faint);
 	}
 }
+
+/* ------------------------------------------------------------- pen test */
+
+/* A bare canvas, deliberately free of everything else. */
+.bl-pentest {
+	width: min(96vw, 1100px);
+	height: 88vh;
+	max-height: 88vh;
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	background: #0b0c0f;
+}
+
+.bl-pentest .modal-content {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+}
+
+.bl-pentest-bar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex: 0 0 auto;
+	padding: 10px 14px;
+	border-bottom: 1px solid #232833;
+	color: #8a91a1;
+	font-size: 13px;
+}
+
+.bl-pentest-counts {
+	font-family: var(--font-monospace);
+	color: #e7e9ee;
+}
+
+.bl-pentest-counts.is-bad {
+	color: #e06c75;
+}
+
+.bl-pentest-hint {
+	margin-left: auto;
+	color: #565d6d;
+}
+
+.bl-pentest-canvas {
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+	touch-action: none;
+	background: #0b0c0f;
+}

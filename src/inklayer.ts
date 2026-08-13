@@ -56,8 +56,16 @@ export class InkLayer {
 	 * and what we decided to do with it. This records exactly that.
 	 */
 	private trace: string[] = [];
+	/**
+	 * Anything that went wrong, kept separately and never rolled off. The
+	 * rolling trace loses a failure as soon as you carry on writing, which is
+	 * exactly what happened the first two times we went looking for one.
+	 */
+	private anomalies: string[] = [];
 	private traceOrigin = performance.now();
 	private moveCount = 0;
+	private downCount = 0;
+	private strokeCount = 0;
 
 	/** Timing of recent strokes, for the diagnostics command. */
 	private strokeStartedAt = 0;
@@ -162,6 +170,22 @@ export class InkLayer {
 		return this.trace;
 	}
 
+	/** Everything unusual since the page opened. */
+	getAnomalies(): string[] {
+		return this.anomalies;
+	}
+
+	/** Pen contacts seen, versus strokes actually banked. */
+	getCounts(): { downs: number; strokes: number } {
+		return { downs: this.downCount, strokes: this.strokeCount };
+	}
+
+	private flag(note: string): void {
+		const at = ((performance.now() - this.traceOrigin) / 1000).toFixed(1);
+		this.anomalies.push(`${at}s ${note}`);
+		if (this.anomalies.length > 80) this.anomalies.shift();
+	}
+
 	private log(event: PointerEvent | null, decision: string): void {
 		const at = (performance.now() - this.traceOrigin).toFixed(0).padStart(6);
 		const detail = event
@@ -169,6 +193,9 @@ export class InkLayer {
 			: "";
 		this.trace.push(`${at}ms ${detail} -> ${decision} [mode=${this.mode}]`);
 		if (this.trace.length > 120) this.trace.shift();
+		if (/ignored|CANCELLED|recovering|no movement/.test(decision)) {
+			this.flag(`${detail} -> ${decision}`);
+		}
 	}
 
 	/**
@@ -452,6 +479,9 @@ export class InkLayer {
 			return;
 		}
 
+		// Counted after the eraser has had its turn, so this compares pen
+		// contacts meant to leave ink against strokes actually kept.
+		this.downCount++;
 		this.beginStroke(point);
 	};
 
@@ -626,6 +656,10 @@ export class InkLayer {
 		if (!finished || finished.points.length === 0) return;
 
 		this.strokes.push(finished);
+		this.strokeCount++;
+		if (this.moveCount === 0) {
+			this.flag("pen went down and up with no movement at all");
+		}
 		this.log(
 			null,
 			`stroke committed: ${finished.points.length} points from ${this.moveCount} moves`

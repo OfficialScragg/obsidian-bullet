@@ -68,6 +68,11 @@ export class InkDiagnosticsModal extends Modal {
 			["Serialise the page", `${serializeMs.toFixed(1)} ms`],
 			["Page size on disk", `${(text.length / 1024).toFixed(1)} KB`],
 			[
+				"Pen contacts vs strokes kept",
+				`${ink.getCounts().downs} down, ${ink.getCounts().strokes} kept`,
+			],
+			["Problems recorded", String(ink.getAnomalies().length)],
+			[
 				"Page rebuilt since opening",
 				`${this.view.renderLog.length}x  ${this.view.renderLog.slice(-8).join(" ")}`,
 			],
@@ -93,6 +98,11 @@ export class InkDiagnosticsModal extends Modal {
 			`Bullet ${this.plugin.manifest.version} — ink diagnostics`,
 			...rows.map(([label, value]) => `${label}: ${value}`),
 			`Platform: ${navigator.userAgent}`,
+			"",
+			"Problems since this page opened:",
+			...(ink.getAnomalies().length
+				? ink.getAnomalies().slice(-40)
+				: ["(none recorded)"]),
 			"",
 			"Pointer log (newest last):",
 			...(trace.length ? trace.slice(-45) : ["(nothing recorded)"]),

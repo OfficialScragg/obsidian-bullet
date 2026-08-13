@@ -24,6 +24,7 @@ const PATHS: Record<string, string> = {
 	x: '<path d="M18 6 6 18M6 6l12 12"/>',
 	check: '<path d="M20 6 9 17l-5-5"/>',
 	file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>',
+	test: '<path d="M9 3h6"/><path d="M10 3v6.5L5.2 18a2 2 0 0 0 1.7 3h10.2a2 2 0 0 0 1.7-3L14 9.5V3"/><path d="M6.5 15h11"/>',
 	gauge: '<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="m14.1 9.9 3.5-3.5"/><path d="M3.5 18a9 9 0 1 1 17 0"/>',
 };
 
