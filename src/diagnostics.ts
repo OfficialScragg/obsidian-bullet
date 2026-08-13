@@ -38,6 +38,14 @@ export class InkDiagnosticsModal extends Modal {
 		const text = serializeNote(this.view.model, [], true);
 		const serializeMs = performance.now() - serializeStart;
 
+		// If this does not match the plugin version, the stylesheet on disk is
+		// not the one running — a stale CSS cache rather than a styling bug.
+		const cssVersion =
+			getComputedStyle(this.view.contentEl)
+				.getPropertyValue("--bl-css-version")
+				.trim()
+				.replace(/^["']|["']$/g, "") || "unknown";
+
 		const dpr = window.devicePixelRatio || 1;
 		const megapixels = (canvas.backingWidth * canvas.backingHeight) / 1e6;
 
@@ -88,6 +96,12 @@ export class InkDiagnosticsModal extends Modal {
 			[
 				"Pen contacts vs strokes kept",
 				`${ink.getCounts().downs} down, ${ink.getCounts().strokes} kept`,
+			],
+			[
+				"Stylesheet version",
+				cssVersion === this.plugin.manifest.version
+					? `${cssVersion} (matches)`
+					: `${cssVersion} — STALE, plugin is ${this.plugin.manifest.version}`,
 			],
 			["Problems recorded", String(ink.getAnomalies().length)],
 			[

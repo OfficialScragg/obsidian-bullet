@@ -17,6 +17,10 @@
 }
 
 .bullet-view {
+	/* Bumped with each release; the diagnostics report reads it back, so a
+	   stale stylesheet can be told apart from one that is being overridden. */
+	--bl-css-version: "1.0.17";
+
 	--bl-scale: 1;
 	--bl-auto: 1;
 
@@ -63,23 +67,53 @@
 	--bl-done: #565d6d;
 }
 
-/* Obsidian gives buttons and fields a minimum tap size, which on mobile is
-   taller than these controls are wide — that is what turned the square
-   checkbox into a rectangle. Bullet sets its own sizes, so the minimums go. */
+/* Obsidian's own rule is `button { height: var(--input-height); padding: … }`,
+   and on mobile --input-height is --touch-size-m, 44px. It also sets
+   `font-size: var(--font-ui-small)`, so a button does NOT inherit the page's
+   font size — every em measurement here would resolve against the host's
+   number instead of Bullet's, and the zoom control would not move buttons at
+   all. Both are corrected here. */
 .bullet-view button,
 .bullet-view input,
 .bullet-view textarea {
 	min-width: 0;
 	min-height: 0;
 	font-family: inherit;
+	font-size: inherit;
 }
 
 .bullet-view button {
 	line-height: 1;
+	height: auto;
+	width: auto;
 }
 
-/* Small controls are square: equal sides, and aspect-ratio to hold it even
-   when a flex row would rather stretch them. */
+/* Each square control names one size, and it is applied to both axes.
+   Marked important on purpose: the host sets a height on every button, and
+   themes commonly force button sizing too. Without it, a checkbox ends up
+   whatever shape someone else decided. */
+.bullet-view .bl-check {
+	--bl-size: 1.2em;
+}
+.bullet-view .bl-star,
+.bullet-view .bl-grip {
+	--bl-size: 1.6em;
+}
+.bullet-view .bl-del {
+	--bl-size: 1.4em;
+}
+.bullet-view .bl-icon-btn {
+	--bl-size: 2.3em;
+}
+.bullet-view .bl-swatch,
+.bullet-view .bl-width {
+	--bl-size: 2em;
+}
+.bullet-view .bl-time-add,
+.bullet-view .bl-day-add {
+	--bl-size: 1.4em;
+}
+
 .bullet-view .bl-check,
 .bullet-view .bl-star,
 .bullet-view .bl-grip,
@@ -89,10 +123,15 @@
 .bullet-view .bl-width,
 .bullet-view .bl-time-add,
 .bullet-view .bl-day-add {
+	width: var(--bl-size) !important;
+	height: var(--bl-size) !important;
+	min-width: 0 !important;
+	min-height: 0 !important;
+	max-width: none !important;
+	max-height: none !important;
+	padding: 0 !important;
 	aspect-ratio: 1;
 	flex: 0 0 auto;
-	min-width: 0;
-	min-height: 0;
 }
 
 /* Every icon in the page is an inline SVG Bullet draws itself. */
@@ -208,8 +247,7 @@
 }
 
 .bullet-view .bl-zoom .bl-icon-btn {
-	width: 1.9em;
-	height: 1.9em;
+	--bl-size: 1.9em;
 }
 
 .bullet-view .bl-zoom-value {
@@ -260,8 +298,6 @@
 	justify-content: center;
 	/* Never let a tight toolbar squash these into ovals. */
 	flex: 0 0 auto;
-	width: 2em;
-	height: 2em;
 	padding: 0;
 	border: 1px solid transparent;
 	border-radius: 6px;
@@ -614,8 +650,6 @@
 	align-items: center;
 	justify-content: center;
 	flex: 0 0 auto;
-	width: 1.6em;
-	height: 1.6em;
 	padding: 0;
 	border: none;
 	border-radius: 4px;
@@ -833,8 +867,9 @@
 /* square day cells */
 .bullet-view .bl-habit-cell {
 	width: 100%;
-	aspect-ratio: 1;
-	height: auto;
+	aspect-ratio: 1 !important;
+	height: auto !important;
+	min-height: 0 !important;
 	padding: 0;
 	border-radius: 3px;
 	background: var(--bl-panel);
@@ -865,12 +900,13 @@
 .bullet-view .bl-time-block {
 	/* Half the width of the column, centred: the blocks shrink and the space
 	   they give up becomes the gaps, so the row still spans the grid. */
-	width: 50%;
+	width: 50% !important;
 	max-width: 1.9em;
 	justify-self: center;
-	aspect-ratio: 1;
-	height: auto;
-	padding: 0;
+	aspect-ratio: 1 !important;
+	height: auto !important;
+	min-height: 0 !important;
+	padding: 0 !important;
 	border: 1px solid transparent;
 	border-radius: 3px;
 	background: color-mix(in srgb, var(--bl-raised) 70%, transparent);
@@ -1029,8 +1065,7 @@
 
 	.bullet-view .bl-star,
 	.bullet-view .bl-grip {
-		width: 1.35em;
-		height: 1.35em;
+		--bl-size: 1.35em;
 	}
 }
 
@@ -1047,13 +1082,11 @@
 
 	.bullet-view .bl-grip {
 		opacity: 0.5;
-		width: 2em;
-		height: 2em;
+		--bl-size: 2em;
 	}
 
 	.bullet-view .bl-star {
-		width: 2em;
-		height: 2em;
+		--bl-size: 2em;
 	}
 }
 

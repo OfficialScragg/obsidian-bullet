@@ -32,6 +32,10 @@ jobs:
             echo "Tag $TAG does not match manifest version $VERSION"
             exit 1
           fi
+          if ! grep -q -- "--bl-css-version: \"$VERSION\"" styles.css; then
+            echo "styles.css --bl-css-version does not match $VERSION"
+            exit 1
+          fi
 
       - name: Create the release
         env:

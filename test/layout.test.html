@@ -1,0 +1,1169 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;background:#0b0c0f;font-family:-apple-system,Inter,system-ui,sans-serif}#app{height:100vh}.svg-icon{display:inline-block;width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* ==========================================================================
+   Bullet — weekly journal page
+
+   Sizing is driven by one root font-size and expressed in em, so the whole
+   page scales from a single number:
+     --bl-scale  the user's zoom, set from the toolbar
+     --bl-auto   an automatic nudge for narrow windows
+   ========================================================================== */
+
+.bullet-view,
+.bullet-view *,
+.bullet-view *::before,
+.bullet-view *::after {
+	/* Don't inherit the host's box model — the page sizes itself to the
+	   window, so padding has to count inside the height. */
+	box-sizing: border-box;
+}
+
+.bullet-view {
+	/* Bumped with each release; the diagnostics report reads it back, so a
+	   stale stylesheet can be told apart from one that is being overridden. */
+	--bl-css-version: "1.0.17";
+
+	--bl-scale: 1;
+	--bl-auto: 1;
+
+	/* By default Bullet borrows the active Obsidian theme. */
+	--bl-bg: var(--background-primary);
+	--bl-panel: var(--background-secondary);
+	--bl-raised: var(--background-secondary-alt);
+	--bl-line: var(--background-modifier-border);
+	--bl-text: var(--text-normal);
+	--bl-muted: var(--text-muted);
+	--bl-faint: var(--text-faint);
+	--bl-accent: var(--interactive-accent);
+	--bl-dot: var(--background-modifier-border);
+	--bl-done: var(--text-faint);
+
+	--bl-radius: 9px;
+	--bl-gap: 0.8em;
+	--bl-row-h: 1.95em;
+	/* one template for both tracker grids: a roomy label column, then seven
+	   equal day columns that the cells make square */
+	--bl-track-cols: minmax(6.5em, 1.7fr) repeat(7, minmax(0, 1fr));
+
+	font-size: calc(13px * var(--bl-scale) * var(--bl-auto));
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 0 !important;
+	overflow: hidden;
+	background: var(--bl-bg);
+	color: var(--bl-text);
+}
+
+/* Bullet's own dark palette — used unless the user opts into theme colours. */
+.bullet-view.bullet-own-theme {
+	--bl-bg: #0b0c0f;
+	--bl-panel: #101216;
+	--bl-raised: #16191f;
+	--bl-line: #232833;
+	--bl-text: #e7e9ee;
+	--bl-muted: #8a91a1;
+	--bl-faint: #565d6d;
+	--bl-accent: #c9a227;
+	--bl-dot: #1c2029;
+	--bl-done: #565d6d;
+}
+
+/* Obsidian's own rule is `button { height: var(--input-height); padding: … }`,
+   and on mobile --input-height is --touch-size-m, 44px. It also sets
+   `font-size: var(--font-ui-small)`, so a button does NOT inherit the page's
+   font size — every em measurement here would resolve against the host's
+   number instead of Bullet's, and the zoom control would not move buttons at
+   all. Both are corrected here. */
+.bullet-view button,
+.bullet-view input,
+.bullet-view textarea {
+	min-width: 0;
+	min-height: 0;
+	font-family: inherit;
+	font-size: inherit;
+}
+
+.bullet-view button {
+	line-height: 1;
+	height: auto;
+	width: auto;
+}
+
+/* Each square control names one size, and it is applied to both axes.
+   Marked important on purpose: the host sets a height on every button, and
+   themes commonly force button sizing too. Without it, a checkbox ends up
+   whatever shape someone else decided. */
+.bullet-view .bl-check {
+	--bl-size: 1.2em;
+}
+.bullet-view .bl-star,
+.bullet-view .bl-grip {
+	--bl-size: 1.6em;
+}
+.bullet-view .bl-del {
+	--bl-size: 1.4em;
+}
+.bullet-view .bl-icon-btn {
+	--bl-size: 2.3em;
+}
+.bullet-view .bl-swatch,
+.bullet-view .bl-width {
+	--bl-size: 2em;
+}
+.bullet-view .bl-time-add,
+.bullet-view .bl-day-add {
+	--bl-size: 1.4em;
+}
+
+.bullet-view .bl-check,
+.bullet-view .bl-star,
+.bullet-view .bl-grip,
+.bullet-view .bl-del,
+.bullet-view .bl-icon-btn,
+.bullet-view .bl-swatch,
+.bullet-view .bl-width,
+.bullet-view .bl-time-add,
+.bullet-view .bl-day-add {
+	width: var(--bl-size) !important;
+	height: var(--bl-size) !important;
+	min-width: 0 !important;
+	min-height: 0 !important;
+	max-width: none !important;
+	max-height: none !important;
+	padding: 0 !important;
+	aspect-ratio: 1;
+	flex: 0 0 auto;
+}
+
+/* Every icon in the page is an inline SVG Bullet draws itself. */
+.bullet-view .bl-svg {
+	display: block;
+	width: 1.15em;
+	height: 1.15em;
+	stroke: currentColor;
+	fill: none;
+	flex: 0 0 auto;
+}
+
+/* --------------------------------------------------------------- toolbar */
+
+.bullet-view .bl-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.45em;
+	padding: 0.5em 0.85em;
+	border-bottom: 1px solid var(--bl-line);
+	background: var(--bl-bg);
+	flex: 0 0 auto;
+}
+
+.bullet-view .bl-toolbar-group {
+	display: flex;
+	align-items: center;
+	gap: 0.25em;
+	min-width: 0;
+}
+
+.bullet-view .bl-toolbar-right {
+	margin-left: auto;
+}
+
+.bullet-view .bl-week-title {
+	font-size: 1.12em;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	padding: 0 0.5em;
+	white-space: nowrap;
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-icon-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 2.3em;
+	height: 2.3em;
+	padding: 0;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-muted);
+	cursor: pointer;
+	transition: background 120ms ease, color 120ms ease;
+}
+
+.bullet-view .bl-icon-btn:hover {
+	background: var(--bl-raised);
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-icon-btn.is-active {
+	background: var(--bl-raised);
+	color: var(--bl-accent);
+}
+
+.bullet-view .bl-icon-btn .bl-svg {
+	width: 1.25em;
+	height: 1.25em;
+}
+
+.bullet-view .bl-mode-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4em;
+	height: 2.3em;
+	padding: 0 0.8em;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-muted);
+	font-size: 1em;
+	letter-spacing: 0.02em;
+	cursor: pointer;
+	transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.bullet-view .bl-mode-btn:hover {
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-mode-btn.is-active {
+	background: var(--bl-raised);
+	border-color: var(--bl-line);
+	color: var(--bl-text);
+}
+
+/* zoom control */
+.bullet-view .bl-zoom {
+	display: flex;
+	align-items: center;
+	gap: 0.1em;
+	padding: 0 0.2em;
+	border: 1px solid var(--bl-line);
+	border-radius: 6px;
+}
+
+.bullet-view .bl-zoom .bl-icon-btn {
+	--bl-size: 1.9em;
+}
+
+.bullet-view .bl-zoom-value {
+	min-width: 3.1em;
+	padding: 0;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-muted);
+	font-size: 0.82em;
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+	cursor: pointer;
+}
+
+.bullet-view .bl-zoom-value:hover {
+	color: var(--bl-text);
+}
+
+/* ----------------------------------------------------------- ink toolbar */
+
+.bullet-view .bl-inkbar {
+	display: none;
+	align-items: center;
+	gap: 1em;
+	width: 100%;
+	padding-top: 0.5em;
+	margin-top: 0.15em;
+	border-top: 1px solid var(--bl-line);
+}
+
+.bullet-view .bl-inkbar.is-visible {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.bullet-view .bl-swatches,
+.bullet-view .bl-widths,
+.bullet-view .bl-inktools {
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
+}
+
+.bullet-view .bl-swatch {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	/* Never let a tight toolbar squash these into ovals. */
+	flex: 0 0 auto;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-swatch);
+	cursor: pointer;
+	transition: background 120ms ease, border-color 120ms ease;
+}
+
+.bullet-view .bl-swatch .bl-svg {
+	width: 1.35em;
+	height: 1.35em;
+}
+
+.bullet-view .bl-swatch:hover {
+	background: var(--bl-raised);
+}
+
+.bullet-view .bl-swatch.is-active {
+	border-color: color-mix(in srgb, var(--bl-swatch) 55%, transparent);
+	background: color-mix(in srgb, var(--bl-swatch) 16%, transparent);
+}
+
+.bullet-view .bl-width {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 2em;
+	height: 2em;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 6px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-text);
+	cursor: pointer;
+}
+
+.bullet-view .bl-width.is-active {
+	border-color: var(--bl-line);
+	background: var(--bl-raised);
+}
+
+.bullet-view .bl-width-dot {
+	display: flex;
+}
+
+.bullet-view .bl-width-dot .bl-svg {
+	width: 1.5em;
+	height: 1.5em;
+}
+
+/* Filled marks (the stroke-width dots) rather than stroked outlines. */
+.bullet-view .bl-svg-fill {
+	fill: currentColor;
+	stroke: none;
+}
+
+/* ------------------------------------------------------------------ page */
+
+/* The whole spread fits the window; the panels scroll inside themselves
+   rather than the page scrolling as a whole. */
+.bullet-view .bl-scroll {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.bullet-view .bl-page {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: var(--bl-gap);
+	height: 100%;
+	padding: 0.9em;
+	overflow: hidden;
+	/* The dot grid from the paper page. */
+	background-image: radial-gradient(var(--bl-dot) 1px, transparent 1px);
+	background-size: 20px 20px;
+	background-position: 8px 8px;
+}
+
+.bullet-view .bl-ink-canvas {
+	position: absolute;
+	inset: 0;
+	z-index: 5;
+	touch-action: auto;
+	pointer-events: none;
+	/* Give the canvas its own compositing layer. Without this every stroke
+	   repaints what is underneath it — the dot-grid gradient and all four
+	   panels — which is ruinous on an iPad. */
+	transform: translateZ(0);
+	backface-visibility: hidden;
+}
+
+.bullet-view .bl-ink-canvas.is-live {
+	will-change: transform;
+}
+
+/* Nothing under the pen needs hover work while drawing. */
+.bullet-view .bl-page.is-inking .bl-grid {
+	pointer-events: none;
+	user-select: none;
+}
+
+/* touch-action is consulted up the ancestor chain, so setting it on the canvas
+   alone leaves the containers above it still offering gestures — and WebKit
+   will hold the next contact back while it waits to see whether a gesture is
+   starting. While the pen is down, nothing above the canvas offers one. */
+.bullet-view .bl-page.is-inking,
+.bullet-view .bl-page.is-inking .bl-notes-strip,
+.bullet-view:has(.bl-page.is-inking) .bl-scroll {
+	touch-action: none;
+	-webkit-touch-callout: none;
+}
+
+/* The paper spread: tasks and meetings across the top, trackers and events
+   along the foot. */
+.bullet-view .bl-grid {
+	display: grid;
+	flex: 1 1 auto;
+	min-height: 0;
+	gap: var(--bl-gap);
+	grid-template-columns: 1fr 1fr;
+	/* Two thirds to the top of the page, one third to the foot. minmax keeps
+	   the zero floor so a track can still shrink rather than overflow. */
+	grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
+	grid-template-areas:
+		"tasks meetings"
+		"trackers events";
+	align-items: stretch;
+}
+
+.bullet-view .bl-area-tasks {
+	grid-area: tasks;
+}
+.bullet-view .bl-area-meetings {
+	grid-area: meetings;
+}
+.bullet-view .bl-area-trackers {
+	grid-area: trackers;
+}
+.bullet-view .bl-area-events {
+	grid-area: events;
+}
+
+/* ----------------------------------------------------------------- cards */
+
+.bullet-view .bl-card {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	min-height: 0;
+	padding: 1em 0.85em 0.6em;
+	border: 1px solid var(--bl-line);
+	border-radius: var(--bl-radius);
+	/* Barely-there fill so the page's dot grid still reads through. */
+	background: color-mix(in srgb, var(--bl-panel) 38%, transparent);
+	/* Not hidden: the boxed label overhangs the top border on purpose.
+	   The body does its own clipping and scrolling. */
+	overflow: visible;
+}
+
+/* The boxed section label, echoing the hand-drawn boxes. */
+.bullet-view .bl-label {
+	position: absolute;
+	top: -0.62em;
+	left: 0.9em;
+	padding: 0 0.6em;
+	border: 1px solid var(--bl-line);
+	border-radius: 5px;
+	background: var(--bl-bg);
+	color: var(--bl-muted);
+	font-size: 0.76em;
+	font-weight: 600;
+	letter-spacing: 0.13em;
+	text-transform: uppercase;
+	z-index: 1;
+}
+
+.bullet-view .bl-card-body {
+	width: 100%;
+	flex: 1 1 auto;
+	min-height: 0;
+	margin-top: 0.15em;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-width: thin;
+}
+
+/* Fields are disabled while the pen is down so that nothing on the page is a
+   text-entry target for Scribble. They must not look any different for it. */
+.bullet-view .bl-input:disabled,
+.bullet-view .bl-notes:disabled {
+	color: inherit;
+	opacity: 1;
+	-webkit-text-fill-color: currentColor;
+	cursor: default;
+}
+
+.bullet-view .bl-row.is-done .bl-input:disabled {
+	-webkit-text-fill-color: var(--bl-done);
+}
+
+/* ------------------------------------------------------------------ rows */
+
+.bullet-view .bl-row {
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
+	min-height: var(--bl-row-h);
+	padding: 0 0.15em;
+	border-radius: 5px;
+}
+
+.bullet-view .bl-row:hover {
+	background: color-mix(in srgb, var(--bl-raised) 60%, transparent);
+}
+
+.bullet-view .bl-input {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: calc(var(--bl-row-h) - 0.25em);
+	padding: 0 0.15em;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-text);
+	font-size: 1em;
+	line-height: 1.3;
+}
+
+.bullet-view .bl-input::placeholder {
+	color: var(--bl-faint);
+}
+
+.bullet-view .bl-input:focus,
+.bullet-view .bl-input:focus-visible {
+	outline: none;
+	box-shadow: inset 0 -1px 0 0 var(--bl-accent);
+}
+
+.bullet-view .bl-dash {
+	color: var(--bl-faint);
+	font-size: 0.9em;
+	flex: 0 0 auto;
+}
+
+/* checkbox */
+.bullet-view .bl-check {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 1.2em;
+	height: 1.2em;
+	padding: 0;
+	border: 1px solid var(--bl-muted);
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	cursor: pointer;
+	transition: background 120ms ease, border-color 120ms ease;
+}
+
+.bullet-view .bl-check .bl-check-mark {
+	display: flex;
+	opacity: 0;
+	transform: scale(0.7);
+	transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.bullet-view .bl-check .bl-svg {
+	width: 0.9em;
+	height: 0.9em;
+	color: var(--bl-bg);
+	stroke-width: 3;
+}
+
+.bullet-view .bl-check.is-checked {
+	border-color: var(--bl-accent);
+	background: var(--bl-accent);
+}
+
+.bullet-view .bl-check.is-checked .bl-check-mark {
+	opacity: 1;
+	transform: scale(1);
+}
+
+.bullet-view .bl-row.is-done .bl-input {
+	color: var(--bl-done);
+	text-decoration: line-through;
+	text-decoration-thickness: 1px;
+}
+
+/* drag handle */
+.bullet-view .bl-grip {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 1.6em;
+	height: 1.6em;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-faint);
+	opacity: 0;
+	cursor: grab;
+	touch-action: none;
+	transition: opacity 120ms ease, color 120ms ease;
+}
+
+.bullet-view .bl-grip .bl-svg {
+	width: 0.85em;
+	height: 0.85em;
+}
+
+.bullet-view .bl-row:hover .bl-grip,
+.bullet-view .bl-grip:focus-visible {
+	opacity: 0.65;
+}
+
+.bullet-view .bl-grip:active {
+	cursor: grabbing;
+	opacity: 1;
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-row.is-dragging {
+	background: var(--bl-raised);
+	box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
+	opacity: 0.96;
+}
+
+.bullet-view .bl-tasks.is-reordering .bl-row {
+	transition: none;
+}
+
+/* priority flag — always visible, and a target you can actually hit */
+.bullet-view .bl-star {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-faint);
+	opacity: 1;
+	cursor: pointer;
+	transition: color 120ms ease, opacity 120ms ease;
+}
+
+.bullet-view .bl-star .bl-svg {
+	width: 0.95em;
+	height: 0.95em;
+	fill: none;
+}
+
+.bullet-view .bl-row:hover .bl-star {
+	color: var(--bl-muted);
+}
+
+.bullet-view .bl-star.is-on,
+.bullet-view .bl-row:hover .bl-star.is-on {
+	color: var(--bl-accent);
+	opacity: 1;
+}
+
+.bullet-view .bl-star.is-on .bl-svg {
+	fill: currentColor;
+}
+
+/* delete */
+.bullet-view .bl-del {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 1.4em;
+	height: 1.4em;
+	padding: 0;
+	border: none;
+	border-radius: 5px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-faint);
+	opacity: 0;
+	cursor: pointer;
+	transition: opacity 120ms ease, color 120ms ease;
+}
+
+.bullet-view .bl-row:hover .bl-del,
+.bullet-view .bl-del:focus-visible {
+	opacity: 1;
+}
+
+.bullet-view .bl-del:hover {
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-del .bl-svg {
+	width: 0.85em;
+	height: 0.85em;
+}
+
+/* add buttons */
+.bullet-view .bl-add-inline {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35em;
+	height: 1.7em;
+	margin-top: 0.3em;
+	padding: 0 0.6em;
+	border: 1px dashed var(--bl-line);
+	border-radius: 5px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-faint);
+	font-size: 0.86em;
+	letter-spacing: 0.03em;
+	cursor: pointer;
+	transition: color 120ms ease, border-color 120ms ease;
+}
+
+.bullet-view .bl-add-inline:hover {
+	color: var(--bl-text);
+	border-color: var(--bl-muted);
+}
+
+.bullet-view .bl-add-inline .bl-svg {
+	width: 0.9em;
+	height: 0.9em;
+}
+
+/* -------------------------------------------------------------- meetings */
+
+.bullet-view .bl-day {
+	padding: 0.2em 0 0.3em;
+	border-bottom: 1px solid var(--bl-line);
+}
+
+.bullet-view .bl-day:last-of-type {
+	border-bottom: none;
+}
+
+.bullet-view .bl-day-head {
+	display: flex;
+	align-items: center;
+	gap: 0.45em;
+	min-height: 1.5em;
+}
+
+.bullet-view .bl-day-add {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.35em;
+	height: 1.35em;
+	margin-left: auto;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-faint);
+	opacity: 0;
+	cursor: pointer;
+	transition: opacity 120ms ease, color 120ms ease;
+}
+
+.bullet-view .bl-day-add .bl-svg {
+	width: 0.85em;
+	height: 0.85em;
+}
+
+.bullet-view .bl-day:hover .bl-day-add,
+.bullet-view .bl-day-add:focus-visible {
+	opacity: 1;
+}
+
+.bullet-view .bl-day-add:hover {
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-day-name {
+	font-size: 0.84em;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-day.is-empty .bl-day-name {
+	color: var(--bl-faint);
+	font-weight: 600;
+}
+
+.bullet-view .bl-day-date {
+	font-size: 0.77em;
+	color: var(--bl-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.bullet-view .bl-time-input {
+	flex: 0 0 auto;
+	width: 3.3em;
+	font-variant-numeric: tabular-nums;
+	color: var(--bl-muted);
+}
+
+/* -------------------------------------------------------------- trackers */
+
+/* Habits and the time grid share one column template so their columns line
+   up, and both use square day cells. */
+.bullet-view .bl-track-grid {
+	display: grid;
+	grid-template-columns: var(--bl-track-cols);
+	gap: 2px;
+	width: 100%;
+	margin-top: 0.1em;
+}
+
+.bullet-view .bl-track-corner,
+.bullet-view .bl-track-dayhead {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 1.5em;
+	color: var(--bl-muted);
+	font-size: 0.78em;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+}
+
+.bullet-view .bl-track-dayhead.is-weekend {
+	color: var(--bl-faint);
+}
+
+/* the label column: habit names and project codes */
+.bullet-view .bl-habit-name,
+.bullet-view .bl-time-code {
+	height: 100%;
+	min-height: 1.8em;
+	padding: 0 0.5em;
+	border-radius: 3px;
+	background: var(--bl-panel);
+	font-size: 0.88em;
+	color: var(--bl-muted);
+}
+
+.bullet-view .bl-time-code {
+	font-weight: 600;
+	letter-spacing: 0.06em;
+}
+
+/* square day cells */
+.bullet-view .bl-habit-cell {
+	width: 100%;
+	aspect-ratio: 1 !important;
+	height: auto !important;
+	min-height: 0 !important;
+	padding: 0;
+	border-radius: 3px;
+	background: var(--bl-panel);
+	text-align: center;
+	font-size: 0.94em;
+}
+
+.bullet-view .bl-habit-cell.is-weekend {
+	background: color-mix(in srgb, var(--bl-panel) 55%, transparent);
+}
+
+/* time grid: a block per project per day, tapped to mark it done */
+.bullet-view .bl-time {
+	width: 100%;
+	margin-top: 0.7em;
+}
+
+.bullet-view .bl-time-label {
+	height: 1.35em;
+	margin-bottom: 0.4em;
+	color: var(--bl-muted);
+	font-size: 0.78em;
+	font-weight: 600;
+	letter-spacing: 0.13em;
+	text-transform: uppercase;
+}
+
+.bullet-view .bl-time-block {
+	/* Half the width of the column, centred: the blocks shrink and the space
+	   they give up becomes the gaps, so the row still spans the grid. */
+	width: 50% !important;
+	max-width: 1.9em;
+	justify-self: center;
+	aspect-ratio: 1 !important;
+	height: auto !important;
+	min-height: 0 !important;
+	padding: 0 !important;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	background: color-mix(in srgb, var(--bl-raised) 70%, transparent);
+	box-shadow: none;
+	cursor: pointer;
+	transition: background 120ms ease, border-color 120ms ease;
+}
+
+.bullet-view .bl-time-block.is-weekend {
+	background: color-mix(in srgb, var(--bl-raised) 35%, transparent);
+}
+
+.bullet-view .bl-time-block:hover {
+	border-color: var(--bl-muted);
+}
+
+.bullet-view .bl-time-block.is-on {
+	background: var(--bl-block);
+	border-color: var(--bl-block);
+}
+
+/* ---------------------------------------------------------------- events */
+
+.bullet-view .bl-event-day {
+	flex: 0 0 auto;
+	width: 6em;
+	color: var(--bl-muted);
+	font-size: 0.94em;
+}
+
+/* ----------------------------------------------------------------- notes */
+
+/* A folded strip along the foot of the page. */
+.bullet-view .bl-notes-strip {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--bl-line);
+	border-radius: var(--bl-radius);
+	background: color-mix(in srgb, var(--bl-panel) 38%, transparent);
+	overflow: hidden;
+}
+
+.bullet-view .bl-notes-toggle {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	width: 100%;
+	height: 1.9em;
+	padding: 0 0.75em;
+	border: none;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-muted);
+	cursor: pointer;
+	text-align: left;
+}
+
+.bullet-view .bl-notes-toggle:hover {
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-notes-caret {
+	display: flex;
+	flex: 0 0 auto;
+	transition: transform 140ms ease;
+}
+
+.bullet-view .bl-notes-caret .bl-svg {
+	width: 0.9em;
+	height: 0.9em;
+}
+
+.bullet-view .bl-notes-strip.is-open .bl-notes-caret {
+	transform: rotate(90deg);
+}
+
+.bullet-view .bl-notes-title {
+	flex: 0 0 auto;
+	font-size: 0.76em;
+	font-weight: 600;
+	letter-spacing: 0.13em;
+	text-transform: uppercase;
+}
+
+.bullet-view .bl-notes-preview {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: var(--bl-faint);
+	font-size: 0.88em;
+}
+
+.bullet-view .bl-notes {
+	display: none;
+	width: 100%;
+	height: 6.5em;
+	padding: 0.15em 0.75em 0.6em;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-text);
+	font-family: inherit;
+	font-size: 1em;
+	line-height: 1.5;
+	resize: none;
+}
+
+.bullet-view .bl-notes-strip.is-open .bl-notes {
+	display: block;
+}
+
+.bullet-view .bl-notes:focus,
+.bullet-view .bl-notes:focus-visible {
+	outline: none;
+}
+
+/* ------------------------------------------------------- smaller screens */
+
+/* The spread stays two-up at every size — that is the point of the page.
+   Only the automatic scale tightens as the window narrows, and the user's
+   own zoom multiplies on top of it. */
+
+@media (max-width: 1100px) {
+	.bullet-view {
+		--bl-auto: 0.95;
+	}
+}
+
+@media (max-width: 820px) {
+	.bullet-view {
+		--bl-auto: 0.89;
+	}
+
+	/* The day name is the anchor; the date can go. */
+	.bullet-view .bl-day-date {
+		display: none;
+	}
+}
+
+@media (max-width: 560px) {
+	.bullet-view {
+		--bl-auto: 0.82;
+	}
+
+	.bullet-view .bl-mode-btn span:last-child {
+		display: none;
+	}
+
+	.bullet-view .bl-mode-btn {
+		padding: 0 0.55em;
+	}
+
+	.bullet-view .bl-star,
+	.bullet-view .bl-grip {
+		--bl-size: 1.35em;
+	}
+}
+
+/* Coarse pointers get bigger targets and no hover-only affordances. */
+@media (pointer: coarse) {
+	.bullet-view {
+		--bl-row-h: 2.35em;
+	}
+
+	.bullet-view .bl-del,
+	.bullet-view .bl-day-add {
+		opacity: 0.5;
+	}
+
+	.bullet-view .bl-grip {
+		opacity: 0.5;
+		--bl-size: 2em;
+	}
+
+	.bullet-view .bl-star {
+		--bl-size: 2em;
+	}
+}
+
+/* ------------------------------------------------------------- pen test */
+
+/* A bare canvas, deliberately free of everything else. */
+.bl-pentest {
+	width: min(96vw, 1100px);
+	height: 88vh;
+	max-height: 88vh;
+	display: flex;
+	flex-direction: column;
+	padding: 0;
+	background: #0b0c0f;
+}
+
+.bl-pentest .modal-content {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+}
+
+.bl-pentest-bar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex: 0 0 auto;
+	padding: 10px 14px;
+	border-bottom: 1px solid #232833;
+	color: #8a91a1;
+	font-size: 13px;
+}
+
+.bl-pentest-counts {
+	font-family: var(--font-monospace);
+	color: #e7e9ee;
+}
+
+.bl-pentest-counts.is-bad {
+	color: #e06c75;
+}
+
+.bl-pentest-hint {
+	margin-left: auto;
+	color: #565d6d;
+}
+
+.bl-pentest-canvas {
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+	touch-action: none;
+	background: #0b0c0f;
+}
+</style></head><body class="theme-dark is-mobile"><style id="host">
+:root{--font-ui-small:13px;--input-height:30px;--size-4-1:4px;--size-4-3:12px;--touch-size-m:44px;--button-radius:5px;--cursor:default;--input-font-weight:400;--text-normal:#e7e9ee}
+body{--input-height:var(--touch-size-m)}
+button{--text-color:var(--text-normal);display:inline-flex;align-items:center;justify-content:center;color:var(--text-color);font-size:var(--font-ui-small);border-radius:var(--button-radius);border:0;padding:var(--size-4-1) var(--size-4-3);height:var(--input-height);font-weight:var(--input-font-weight);cursor:var(--cursor);font-family:inherit;outline:none;user-select:none;white-space:nowrap}
+input,textarea{height:var(--input-height);font-size:var(--font-ui-small)}
+/* a theme forcing button metrics */
+.theme-dark button{height:var(--input-height)!important;padding:6px 14px!important}
+</style><div id="app"><div class="bullet-view bullet-own-theme" style="--bl-scale:1"><div class="bl-toolbar"><div class="bl-toolbar-group"><button class="bl-icon-btn"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button><div class="bl-week-title">20/07 → 26/07</div><button class="bl-icon-btn"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button><button class="bl-icon-btn"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"/></svg></button></div><div class="bl-toolbar-group bl-toolbar-right"><div class="bl-zoom"><button class="bl-icon-btn"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button><button class="bl-zoom-value">100%</button><button class="bl-icon-btn"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></div><button class="bl-mode-btn"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg><span>Type</span></button><button class="bl-mode-btn is-active"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span>Draw</span></button></div><div class="bl-inkbar is-visible"><div class="bl-swatches"><button class="bl-swatch " style="--bl-swatch:#e8eaee"><svg class="bl-svg bl-svg-fill" viewBox="0 0 24 24"><path d="M12 3c4.1 4.6 6.2 8 6.2 10.4a6.2 6.2 0 0 1-12.4 0C5.8 11 7.9 7.6 12 3z"/><path d="M9.6 13.6a2.4 2.4 0 0 1 2.4-2.4" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1.4" stroke-linecap="round"/></svg></button><button class="bl-swatch is-active" style="--bl-swatch:#c9a227"><svg class="bl-svg bl-svg-fill" viewBox="0 0 24 24"><path d="M12 3c4.1 4.6 6.2 8 6.2 10.4a6.2 6.2 0 0 1-12.4 0C5.8 11 7.9 7.6 12 3z"/><path d="M9.6 13.6a2.4 2.4 0 0 1 2.4-2.4" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1.4" stroke-linecap="round"/></svg></button><button class="bl-swatch " style="--bl-swatch:#6fa8dc"><svg class="bl-svg bl-svg-fill" viewBox="0 0 24 24"><path d="M12 3c4.1 4.6 6.2 8 6.2 10.4a6.2 6.2 0 0 1-12.4 0C5.8 11 7.9 7.6 12 3z"/><path d="M9.6 13.6a2.4 2.4 0 0 1 2.4-2.4" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1.4" stroke-linecap="round"/></svg></button><button class="bl-swatch " style="--bl-swatch:#e06c75"><svg class="bl-svg bl-svg-fill" viewBox="0 0 24 24"><path d="M12 3c4.1 4.6 6.2 8 6.2 10.4a6.2 6.2 0 0 1-12.4 0C5.8 11 7.9 7.6 12 3z"/><path d="M9.6 13.6a2.4 2.4 0 0 1 2.4-2.4" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1.4" stroke-linecap="round"/></svg></button></div><div class="bl-widths"><button class="bl-width "><span class="bl-width-dot"><svg class="bl-svg bl-svg-fill" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/></svg></span></button><button class="bl-width is-active"><span class="bl-width-dot"><svg class="bl-svg bl-svg-fill" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></svg></span></button><button class="bl-width "><span class="bl-width-dot"><svg class="bl-svg bl-svg-fill" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg></span></button><button class="bl-width "><span class="bl-width-dot"><svg class="bl-svg bl-svg-fill" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/></svg></span></button></div><div class="bl-inktools"><button class="bl-icon-btn"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L13 21z"/><path d="M22 21H7"/></svg></button><button class="bl-icon-btn"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button><button class="bl-icon-btn"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button><button class="bl-icon-btn"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="m14.1 9.9 3.5-3.5"/><path d="M3.5 18a9 9 0 1 1 17 0"/></svg></button><button class="bl-icon-btn"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button></div></div></div><div class="bl-scroll"><div class="bl-page"><div class="bl-grid"><div class="bl-card bl-area-tasks"><div class="bl-label">Tasks</div><div class="bl-card-body"><div class="bl-row bl-task is-done"><button class="bl-grip"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16"/></svg></button><button class="bl-star is-on"><svg class="bl-svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z"/></svg></button><button class="bl-check is-checked"><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input" value="Electrum SUV testing"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-task"><button class="bl-grip"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16"/></svg></button><button class="bl-star "><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z"/></svg></button><button class="bl-check "><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input" value="Electrum ABSA report"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-task is-done"><button class="bl-grip"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16"/></svg></button><button class="bl-star "><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z"/></svg></button><button class="bl-check is-checked"><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input" value="CIB testing"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-task"><button class="bl-grip"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16"/></svg></button><button class="bl-star "><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z"/></svg></button><button class="bl-check "><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input" value="CIB reporting"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-task"><button class="bl-grip"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16"/></svg></button><button class="bl-star is-on"><svg class="bl-svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z"/></svg></button><button class="bl-check "><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input" value="Message Talbot"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-task"><button class="bl-grip"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16"/></svg></button><button class="bl-star "><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z"/></svg></button><button class="bl-check "><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input" value="Open CRX lab"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-task"><button class="bl-grip"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16"/></svg></button><button class="bl-star "><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z"/></svg></button><button class="bl-check "><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input" value="Open IT Cockpit"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-task is-done"><button class="bl-grip"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16"/></svg></button><button class="bl-star is-on"><svg class="bl-svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z"/></svg></button><button class="bl-check is-checked"><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input" value="Log WE time"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-task is-done"><button class="bl-grip"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16"/></svg></button><button class="bl-star is-on"><svg class="bl-svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z"/></svg></button><button class="bl-check is-checked"><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input" value="Kickoff Greyhound pentest scans"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-task"><button class="bl-grip"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16"/></svg></button><button class="bl-star "><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z"/></svg></button><button class="bl-check "><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input" value="Kj blood test"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-task is-done"><button class="bl-grip"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16"/></svg></button><button class="bl-star "><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z"/></svg></button><button class="bl-check is-checked"><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input" value="Invoice WE"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><button class="bl-add-inline"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Add task</span></button></div></div><div class="bl-card bl-area-meetings"><div class="bl-label">Meetings</div><div class="bl-card-body"><div class="bl-day "><div class="bl-day-head"><span class="bl-day-name">Monday</span><span class="bl-day-date">20/07</span><button class="bl-day-add"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></div><div class="bl-day-list"><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="10:00"><span class="bl-dash">—</span><input class="bl-input" value="CL Stand up"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="10:30"><span class="bl-dash">—</span><input class="bl-input" value="WE Stand up"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="11:00"><span class="bl-dash">—</span><input class="bl-input" value="Electrum Project Update"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="15:30"><span class="bl-dash">—</span><input class="bl-input" value="WE Service Overview"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div></div><div class="bl-day "><div class="bl-day-head"><span class="bl-day-name">Tuesday</span><span class="bl-day-date">21/07</span><button class="bl-day-add"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></div><div class="bl-day-list"><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="10:30"><span class="bl-dash">—</span><input class="bl-input" value="WE Stand up"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div></div><div class="bl-day "><div class="bl-day-head"><span class="bl-day-name">Wednesday</span><span class="bl-day-date">22/07</span><button class="bl-day-add"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></div><div class="bl-day-list"><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="10:30"><span class="bl-dash">—</span><input class="bl-input" value="WE Stand up"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="12:00"><span class="bl-dash">—</span><input class="bl-input" value="WE Melisa demo"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div></div><div class="bl-day "><div class="bl-day-head"><span class="bl-day-name">Thursday</span><span class="bl-day-date">23/07</span><button class="bl-day-add"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></div><div class="bl-day-list"><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="10:30"><span class="bl-dash">—</span><input class="bl-input" value="WE Stand up (Valantic)"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="11:00"><span class="bl-dash">—</span><input class="bl-input" value="WE AI Ideation"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div></div><div class="bl-day "><div class="bl-day-head"><span class="bl-day-name">Friday</span><span class="bl-day-date">24/07</span><button class="bl-day-add"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></div><div class="bl-day-list"><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="10:30"><span class="bl-dash">—</span><input class="bl-input" value="WE Stand up"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="11:30"><span class="bl-dash">—</span><input class="bl-input" value="ARC presentation"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="13:30"><span class="bl-dash">—</span><input class="bl-input" value="WE Quiz"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-meeting"><input class="bl-input bl-time-input" value="14:00"><span class="bl-dash">—</span><input class="bl-input" value="CL Show &amp; Tell"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div></div><div class="bl-day is-empty"><div class="bl-day-head"><span class="bl-day-name">Saturday</span><span class="bl-day-date">25/07</span><button class="bl-day-add"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></div><div class="bl-day-list"></div></div><div class="bl-day is-empty"><div class="bl-day-head"><span class="bl-day-name">Sunday</span><span class="bl-day-date">26/07</span><button class="bl-day-add"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button></div><div class="bl-day-list"></div></div></div></div><div class="bl-card bl-area-trackers"><div class="bl-label">Trackers</div><div class="bl-card-body"><div class="bl-track-grid bl-habit-table"><div class="bl-track-corner"></div><div class="bl-track-dayhead ">M</div><div class="bl-track-dayhead ">T</div><div class="bl-track-dayhead ">W</div><div class="bl-track-dayhead ">T</div><div class="bl-track-dayhead ">F</div><div class="bl-track-dayhead is-weekend">S</div><div class="bl-track-dayhead is-weekend">S</div><input class="bl-input bl-habit-name" value="Mornings"><input class="bl-input bl-habit-cell " value="S"><input class="bl-input bl-habit-cell " value="O"><input class="bl-input bl-habit-cell " value="O"><input class="bl-input bl-habit-cell " value="O"><input class="bl-input bl-habit-cell " value="O"><input class="bl-input bl-habit-cell is-weekend" value=""><input class="bl-input bl-habit-cell is-weekend" value=""><input class="bl-input bl-habit-name" value="Exercise"><input class="bl-input bl-habit-cell " value="10 pups"><input class="bl-input bl-habit-cell " value=""><input class="bl-input bl-habit-cell " value=""><input class="bl-input bl-habit-cell " value=""><input class="bl-input bl-habit-cell " value=""><input class="bl-input bl-habit-cell is-weekend" value=""><input class="bl-input bl-habit-cell is-weekend" value=""></div><button class="bl-add-inline"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Add habit</span></button><div class="bl-time"><input class="bl-input bl-time-label" value="2 Hours"><div class="bl-track-grid bl-time-grid"><div class="bl-track-corner"></div><div class="bl-track-dayhead ">M</div><div class="bl-track-dayhead ">T</div><div class="bl-track-dayhead ">W</div><div class="bl-track-dayhead ">T</div><div class="bl-track-dayhead ">F</div><div class="bl-track-dayhead is-weekend">S</div><div class="bl-track-dayhead is-weekend">S</div><input class="bl-input bl-time-code" value="WE"><button class="bl-time-block is-on " style="--bl-block:#c9a227"></button><button class="bl-time-block is-on " style="--bl-block:#c9a227"></button><button class="bl-time-block is-on " style="--bl-block:#c9a227"></button><button class="bl-time-block is-on " style="--bl-block:#c9a227"></button><button class="bl-time-block is-on " style="--bl-block:#c9a227"></button><button class="bl-time-block  is-weekend" style="--bl-block:#c9a227"></button><button class="bl-time-block  is-weekend" style="--bl-block:#c9a227"></button><input class="bl-input bl-time-code" value="CL"><button class="bl-time-block  " style="--bl-block:#7d9fc4"></button><button class="bl-time-block  " style="--bl-block:#7d9fc4"></button><button class="bl-time-block  " style="--bl-block:#7d9fc4"></button><button class="bl-time-block  " style="--bl-block:#7d9fc4"></button><button class="bl-time-block is-on " style="--bl-block:#7d9fc4"></button><button class="bl-time-block  is-weekend" style="--bl-block:#7d9fc4"></button><button class="bl-time-block  is-weekend" style="--bl-block:#7d9fc4"></button><input class="bl-input bl-time-code" value="OS"><button class="bl-time-block  " style="--bl-block:#cf8a6a"></button><button class="bl-time-block  " style="--bl-block:#cf8a6a"></button><button class="bl-time-block  " style="--bl-block:#cf8a6a"></button><button class="bl-time-block  " style="--bl-block:#cf8a6a"></button><button class="bl-time-block  " style="--bl-block:#cf8a6a"></button><button class="bl-time-block  is-weekend" style="--bl-block:#cf8a6a"></button><button class="bl-time-block  is-weekend" style="--bl-block:#cf8a6a"></button><input class="bl-input bl-time-code" value="FR"><button class="bl-time-block is-on " style="--bl-block:#a08cc9"></button><button class="bl-time-block  " style="--bl-block:#a08cc9"></button><button class="bl-time-block  " style="--bl-block:#a08cc9"></button><button class="bl-time-block  " style="--bl-block:#a08cc9"></button><button class="bl-time-block  " style="--bl-block:#a08cc9"></button><button class="bl-time-block  is-weekend" style="--bl-block:#a08cc9"></button><button class="bl-time-block  is-weekend" style="--bl-block:#a08cc9"></button></div><button class="bl-add-inline"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Project</span></button></div></div></div><div class="bl-card bl-area-events"><div class="bl-label">Events</div><div class="bl-card-body"><div class="bl-row bl-event is-done"><button class="bl-check is-checked"><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input bl-event-day" value="Tuesday"><span class="bl-dash">—</span><input class="bl-input" value="Portia"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-event is-done"><button class="bl-check is-checked"><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input bl-event-day" value="Wednesday"><span class="bl-dash">—</span><input class="bl-input" value="Matt coffee"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div class="bl-row bl-event is-done"><button class="bl-check is-checked"><span class="bl-check-mark"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></button><input class="bl-input bl-event-day" value="Tuesday"><span class="bl-dash">—</span><input class="bl-input" value="Passports 9am"><button class="bl-del"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><button class="bl-add-inline"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Add event</span></button></div></div></div><div class="bl-notes-strip"><button class="bl-notes-toggle"><span class="bl-notes-caret"><svg class="bl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span><span class="bl-notes-title">Notes</span><span class="bl-notes-preview">Chase the WE invoice before Friday.</span></button><textarea class="bl-notes">Chase the WE invoice before Friday.</textarea></div><svg class="bl-ink-canvas" preserveAspectRatio="none" viewBox="0 0 1000 1000"><path d="M60 470 q40 -26 80 0 t80 0 t80 0" fill="none" stroke="#c9a227" stroke-width="3.4" stroke-linecap="round"/><ellipse cx="215" cy="530" rx="80" ry="22" fill="none" stroke="#c9a227" stroke-width="2.6" transform="rotate(-4 215 530)"/><path d="M300 540 l38 -22" fill="none" stroke="#c9a227" stroke-width="2.6" stroke-linecap="round"/></svg></div></div></div></div><script>
+window.addEventListener('load',()=>{
+ const out=[];
+ const m=(sel)=>{const e=document.querySelector(sel);if(!e)return sel+' MISSING';
+   const r=e.getBoundingClientRect();
+   const sq=Math.abs(r.width-r.height)<0.6;
+   return (sq?'SQUARE   ':'RECTANGLE')+'  '+sel+'  '+r.width.toFixed(1)+'x'+r.height.toFixed(1);};
+ ['.bl-check','.bl-star','.bl-grip','.bl-del','.bl-icon-btn','.bl-swatch','.bl-width','.bl-time-block','.bl-habit-cell'].forEach(s=>out.push(m(s)));
+ const v=getComputedStyle(document.querySelector('.bullet-view')).getPropertyValue('--bl-css-version');
+ const d=document.createElement('pre');
+ d.style.cssText='position:fixed;top:0;left:0;z-index:99;background:#fff;color:#000;font:11px monospace;padding:5px;white-space:pre';
+ d.textContent='against Obsidian mobile button CSS + a theme forcing !important:\ncss version '+v+'\n'+out.join('\n');
+ document.body.appendChild(d);
+});
+</script></body></html>
