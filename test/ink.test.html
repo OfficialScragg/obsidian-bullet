@@ -59,6 +59,7 @@ function send(type, x, y, opts = {}) {
   canvas.dispatchEvent(new PointerEvent(type, {
     pointerId: opts.id ?? pid, pointerType: opts.type ?? 'pen',
     clientX: x, clientY: y, pressure: opts.pressure ?? 0.5,
+    buttons: opts.buttons !== undefined ? opts.buttons : (type === 'pointerup' ? 0 : 1),
     bubbles: true, cancelable: true, isPrimary: true,
   }));
 }
@@ -142,6 +143,56 @@ async function drawLine(y, n = 30, id = pid) {
   send('pointerdown', 560, 60, { id: 21 });
   send('pointerup', 560, 60, { id: 21 });
   check('eraser misses empty space', ink.getStrokes().length, beforeMiss);
+
+  // --- a palm landing mid-stroke must not disturb the pen -----------------
+  ink.setMode('draw');
+  const strokesBeforePalm = ink.getStrokes().length;
+  send('pointerdown', 100, 250, { id: 50 });
+  send('pointermove', 140, 250, { id: 50 });
+  await frame();
+
+  // the hand settles on the glass while the pen is still writing
+  send('pointerdown', 400, 420, { id: 51, type: 'touch' });
+  send('pointermove', 402, 424, { id: 51, type: 'touch' });
+  await frame();
+
+  // the pen carries on
+  send('pointermove', 180, 250, { id: 50 });
+  send('pointermove', 220, 250, { id: 50 });
+  await frame();
+  send('pointerup', 402, 424, { id: 51, type: 'touch' });
+  send('pointerup', 220, 250, { id: 50 });
+
+  check('palm does not break the stroke', ink.getStrokes().length, strokesBeforePalm + 1);
+  const palmStroke = ink.getStrokes()[ink.getStrokes().length - 1];
+  check('pen kept drawing through the palm', palmStroke.points.length >= 4, true);
+  check('the stroke reached its end', Math.round(palmStroke.points[palmStroke.points.length-1].x), Math.round(toInk(220)));
+  check('the canvas kept pointer events', canvas.style.pointerEvents, 'auto');
+
+  // --- a stroke whose pointerdown never arrived must still draw -----------
+  ink.setMode('draw');
+  const beforeLost = ink.getStrokes().length;
+  // no pointerdown at all: the pen is simply already on the glass and moving
+  send('pointermove', 300, 450, { id: 60, buttons: 1 });
+  send('pointermove', 340, 450, { id: 60, buttons: 1 });
+  send('pointermove', 380, 450, { id: 60, buttons: 1 });
+  await frame();
+  send('pointerup', 380, 450, { id: 60 });
+  check('a stroke with no pointerdown is recovered', ink.getStrokes().length, beforeLost + 1);
+  check('the recovered stroke has its points',
+    ink.getStrokes()[ink.getStrokes().length - 1].points.length >= 2, true);
+
+  // a hovering pen (no contact) must not start anything
+  const beforeHover = ink.getStrokes().length;
+  send('pointermove', 300, 500, { id: 61, buttons: 0 });
+  send('pointermove', 340, 500, { id: 61, buttons: 0 });
+  await frame();
+  check('a hovering pen does not draw', ink.getStrokes().length, beforeHover);
+
+  const beforeOutside = ink.getStrokes().length;
+  send('pointermove', 300, 100, { id: 62, buttons: 1 });
+  await frame();
+  check('a pen outside the canvas does not draw', ink.getStrokes().length, beforeOutside);
 
   // --- the incremental encoding cache must match a full encode -----------
   const full = () => encodeInk(ink.getStrokes(), true);

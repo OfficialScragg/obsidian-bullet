@@ -82,10 +82,17 @@ export class InkLayer {
 		if (!ctx) throw new Error("Bullet: unable to get a 2D canvas context");
 		this.ctx = ctx;
 
+		// Only pointerdown is bound to the canvas. Movement and release are
+		// bound to the window on purpose: pointer capture can be taken away
+		// mid-stroke — the spec releases it whenever the capturing element
+		// stops being hit-testable — and anything listening on the canvas
+		// alone simply stops hearing about a pen that is still on the glass.
 		this.canvas.addEventListener("pointerdown", this.onPointerDown);
-		this.canvas.addEventListener("pointermove", this.onPointerMove);
-		this.canvas.addEventListener("pointerup", this.onPointerUp);
-		this.canvas.addEventListener("pointercancel", this.onPointerUp);
+		window.addEventListener("pointermove", this.onPointerMove, {
+			passive: false,
+		});
+		window.addEventListener("pointerup", this.onPointerUp);
+		window.addEventListener("pointercancel", this.onPointerUp);
 		// Stop iPadOS turning a long press into a text-selection loupe.
 		this.canvas.addEventListener("contextmenu", (e) => {
 			if (this.mode !== "off") e.preventDefault();
@@ -105,6 +112,9 @@ export class InkLayer {
 	}
 
 	destroy(): void {
+		window.removeEventListener("pointermove", this.onPointerMove);
+		window.removeEventListener("pointerup", this.onPointerUp);
+		window.removeEventListener("pointercancel", this.onPointerUp);
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = null;
 		if (this.frameHandle) cancelAnimationFrame(this.frameHandle);
@@ -347,11 +357,21 @@ export class InkLayer {
 		if (this.mode === "off") return;
 
 		if (!this.isDrawingPointer(e)) {
+			// A finger arriving while the pen is working is a palm. Ignore it
+			// outright rather than letting it start a pan under the writing.
+			if (this.activePointerId !== null) return;
 			this.beginPan(e);
 			return;
 		}
-		// A pen touching down cancels any momentum still running.
+
+		// The pen wins over any pan in progress, and takes it down cleanly
+		// rather than leaving a captured pointer behind.
+		if (this.panPointerId !== null) this.cancelPan();
 		this.stopPan();
+
+		// If a previous stroke never saw its pointerup, keep its ink instead of
+		// dropping it on the floor.
+		this.commitActive();
 
 		e.preventDefault();
 		this.activePointerId = e.pointerId;
@@ -370,13 +390,39 @@ export class InkLayer {
 			return;
 		}
 
+		this.beginStroke(point);
+	};
+
+	/** Open a stroke from a move, when its pointerdown never reached us. */
+	private startStroke(e: PointerEvent): void {
+		this.activePointerId = e.pointerId;
+		this.capture(e.pointerId);
+		this.refreshOrigin();
+		this.pending.length = 0;
+		this.strokeStartedAt = performance.now();
+		this.commitActive();
+		this.beginStroke(this.toInk(e));
+	}
+
+	private beginStroke(point: InkPoint): void {
 		this.active = {
 			color: this.opts.color,
 			width: this.opts.width,
 			points: [point],
 		};
 		this.redoStack = [];
-	};
+	}
+
+	private isOverCanvas(e: PointerEvent): boolean {
+		const x = (e.clientX - this.originX) / this.scale;
+		const y = (e.clientY - this.originY) / this.scale;
+		return (
+			x >= 0 &&
+			y >= 0 &&
+			x <= INK_SPACE &&
+			y <= this.cssHeight / this.scale
+		);
+	}
 
 	private onPointerMove = (e: PointerEvent): void => {
 		if (this.mode === "off") return;
@@ -385,7 +431,22 @@ export class InkLayer {
 			this.movePan(e);
 			return;
 		}
-		if (this.activePointerId !== e.pointerId) return;
+		if (this.activePointerId !== e.pointerId) {
+			// The pen is on the glass but we have no stroke for it: its
+			// pointerdown was swallowed, or capture was taken away and the
+			// down went somewhere else. Pick the stroke up from here rather
+			// than leaving the user drawing nothing.
+			if (
+				this.activePointerId === null &&
+				this.isDrawingPointer(e) &&
+				e.buttons !== 0 &&
+				this.isOverCanvas(e)
+			) {
+				this.startStroke(e);
+			} else {
+				return;
+			}
+		}
 		e.preventDefault();
 
 		// Collect here and draw on the next frame. Drawing inline meant doing
@@ -474,20 +535,23 @@ export class InkLayer {
 			this.opts.onChange();
 			return;
 		}
-		if (!this.active) return;
+		this.commitActive();
+	};
 
+	/** Bank the stroke in progress, if there is one. */
+	private commitActive(): void {
 		const finished = this.active;
 		this.active = null;
-		if (finished.points.length > 0) {
-			this.strokes.push(finished);
-			// A tap, or a flick too small to clear the jitter filter, never
-			// reached renderFrame — paint it here or it simply never appears.
-			if (finished.points.length < 2) {
-				paintStroke(this.ctx, finished, this.scale);
-			}
-			this.opts.onChange();
+		if (!finished || finished.points.length === 0) return;
+
+		this.strokes.push(finished);
+		// A tap, or a flick too small to clear the jitter filter, never reached
+		// renderFrame — paint it here or it simply never appears.
+		if (finished.points.length < 2) {
+			paintStroke(this.ctx, finished, this.scale);
 		}
-	};
+		this.opts.onChange();
+	}
 
 	private eraseAt(x: number, y: number): void {
 		const before = this.strokes.length;
@@ -507,10 +571,17 @@ export class InkLayer {
 	 * its own now, and the canvas sits over all of them.
 	 */
 	private scrollableUnder(x: number, y: number): HTMLElement | null {
-		const previous = this.canvas.style.pointerEvents;
-		this.canvas.style.pointerEvents = "none";
-		let node = document.elementFromPoint(x, y) as HTMLElement | null;
-		this.canvas.style.pointerEvents = previous;
+		// elementsFromPoint returns the whole stack at this point, so the canvas
+		// can simply be skipped.
+		//
+		// This used to set pointer-events: none on the canvas to see past it.
+		// That makes the canvas un-hit-testable for an instant, and the Pointer
+		// Events spec releases pointer capture when the capturing element stops
+		// being hit-testable — so a palm landing mid-word silently took the pen
+		// away from the canvas and the stroke stopped dead.
+		const stack = document.elementsFromPoint(x, y) as HTMLElement[];
+		let node: HTMLElement | null =
+			stack.find((el) => el !== this.canvas) ?? null;
 
 		while (node) {
 			const overflow = getComputedStyle(node).overflowY;
@@ -563,6 +634,12 @@ export class InkLayer {
 		this.panVelocity = dy / dt;
 		this.panLastY = e.clientY;
 		this.panLastTime = now;
+	}
+
+	private cancelPan(): void {
+		if (this.panPointerId !== null) this.release(this.panPointerId);
+		this.panPointerId = null;
+		this.stopPan();
 	}
 
 	private endPan(): void {
