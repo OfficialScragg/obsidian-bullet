@@ -332,6 +332,7 @@ export class BulletView extends TextFileView {
 		this.renderNotes(this.pageEl);
 
 		this.setupInk();
+		if (this.mode !== "off") this.suppressTextTargets(true);
 	}
 
 	private renderToolbar(bar: HTMLElement): void {
@@ -472,12 +473,50 @@ export class BulletView extends TextFileView {
 		this.ink?.setMode(mode);
 		this.pageEl?.toggleClass("is-inking", mode !== "off");
 
-		// iPadOS Scribble engages over editable fields and delays pen input
-		// while it decides whether you are writing into one. Making the panels
-		// inert while drawing takes them out of its reach.
-		const grid = this.pageEl?.querySelector<HTMLElement>(".bl-grid");
-		if (grid) grid.toggleAttribute("inert", mode !== "off");
-		if (mode !== "off" && document.activeElement instanceof HTMLElement) {
+		this.suppressTextTargets(mode !== "off");
+	}
+
+	/**
+	 * Take every text-entry target out of reach while the pen is down.
+	 *
+	 * iPadOS Scribble is what holds pen input back: it engages over editable
+	 * fields, and this page is built from them — every task, meeting and event
+	 * is an input, plus the notes textarea. On each pen-down the system pauses
+	 * to work out whether you are writing into a field or just writing, and
+	 * that pause is the wait before a stroke is allowed to start.
+	 *
+	 * There is no way to address Scribble directly from web content, but there
+	 * is a way to leave it nothing to engage with: a read-only field takes no
+	 * text, and an inert subtree takes no interaction at all.
+	 */
+	private suppressTextTargets(on: boolean): void {
+		const root = this.contentEl;
+
+		for (const field of Array.from(
+			root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+				"input, textarea"
+			)
+		)) {
+			if (on) {
+				// disabled, not read-only: a read-only field is still a text
+				// field, and the point is to leave nothing that could be one.
+				// The styling below keeps them looking exactly as they were.
+				field.disabled = true;
+				field.tabIndex = -1;
+				field.setAttribute("inputmode", "none");
+			} else {
+				field.disabled = false;
+				field.removeAttribute("tabindex");
+				field.removeAttribute("inputmode");
+			}
+		}
+
+		for (const selector of [".bl-grid", ".bl-notes-strip"]) {
+			const el = this.pageEl?.querySelector<HTMLElement>(selector);
+			el?.toggleAttribute("inert", on);
+		}
+
+		if (on && document.activeElement instanceof HTMLElement) {
 			document.activeElement.blur();
 		}
 	}

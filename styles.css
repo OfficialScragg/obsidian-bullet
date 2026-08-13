@@ -421,6 +421,20 @@
 	scrollbar-width: thin;
 }
 
+/* Fields are disabled while the pen is down so that nothing on the page is a
+   text-entry target for Scribble. They must not look any different for it. */
+.bullet-view .bl-input:disabled,
+.bullet-view .bl-notes:disabled {
+	color: inherit;
+	opacity: 1;
+	-webkit-text-fill-color: currentColor;
+	cursor: default;
+}
+
+.bullet-view .bl-row.is-done .bl-input:disabled {
+	-webkit-text-fill-color: var(--bl-done);
+}
+
 /* ------------------------------------------------------------------ rows */
 
 .bullet-view .bl-row {

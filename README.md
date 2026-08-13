@@ -84,6 +84,13 @@ opens the full report — canvas size, paint, redraw and save cost — which you
 copy or write into the vault as a note. No command palette needed, which matters
 on a tablet.
 
+While the pen is down, every field on the page is disabled and the panels are
+made inert. That is deliberate: iPadOS Scribble engages over text-entry targets,
+and it pauses on each pen-down to decide whether you are writing into one — a
+wait you cannot write through. Leaving it nothing to engage with is the only
+lever web content has. The fields look and behave exactly as before; they simply
+stop being text fields until you switch back to Type.
+
 The eraser removes whole strokes rather than nibbling at them, which is far more
 predictable on a touch screen. Undo and redo apply to strokes only; they don't
 touch your typing.
