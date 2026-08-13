@@ -1,0 +1,997 @@
+/* ==========================================================================
+   Bullet — weekly journal page
+   ========================================================================== */
+
+/* Don't inherit the host's box model — the page sizes itself to the window,
+   so padding has to count inside the height. */
+.bullet-view,
+.bullet-view *,
+.bullet-view *::before,
+.bullet-view *::after {
+	box-sizing: border-box;
+}
+
+.bullet-view {
+	/* By default Bullet borrows the active Obsidian theme. */
+	--bl-bg: var(--background-primary);
+	--bl-panel: var(--background-secondary);
+	--bl-raised: var(--background-secondary-alt);
+	--bl-line: var(--background-modifier-border);
+	--bl-text: var(--text-normal);
+	--bl-muted: var(--text-muted);
+	--bl-faint: var(--text-faint);
+	--bl-accent: var(--interactive-accent);
+	--bl-dot: var(--background-modifier-border);
+	--bl-done: var(--text-faint);
+
+	--bl-radius: 9px;
+	--bl-gap: 10px;
+	--bl-row-h: 25px;
+	--bl-font: 0.83rem;
+
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 0 !important;
+	overflow: hidden;
+	background: var(--bl-bg);
+	color: var(--bl-text);
+}
+
+/* Bullet's own dark palette — used unless the user opts into theme colours. */
+.bullet-view.bullet-own-theme {
+	--bl-bg: #0b0c0f;
+	--bl-panel: #101216;
+	--bl-raised: #16191f;
+	--bl-line: #232833;
+	--bl-text: #e7e9ee;
+	--bl-muted: #8a91a1;
+	--bl-faint: #565d6d;
+	--bl-accent: #c9a227;
+	--bl-dot: #1c2029;
+	--bl-done: #565d6d;
+}
+
+/* --------------------------------------------------------------- toolbar */
+
+.bullet-view .bl-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 14px;
+	border-bottom: 1px solid var(--bl-line);
+	background: color-mix(in srgb, var(--bl-bg) 88%, transparent);
+	backdrop-filter: blur(12px);
+	flex: 0 0 auto;
+}
+
+.bullet-view .bl-toolbar-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.bullet-view .bl-toolbar-right {
+	margin-left: auto;
+}
+
+.bullet-view .bl-week-title {
+	font-size: 0.95rem;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	padding: 0 8px;
+	white-space: nowrap;
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-icon-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 30px;
+	height: 30px;
+	padding: 0;
+	border: none;
+	border-radius: 7px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-muted);
+	cursor: pointer;
+	transition: background 120ms ease, color 120ms ease;
+}
+
+.bullet-view .bl-icon-btn:hover {
+	background: var(--bl-raised);
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-icon-btn.is-active {
+	background: var(--bl-raised);
+	color: var(--bl-accent);
+}
+
+.bullet-view .bl-icon-btn .svg-icon {
+	width: 16px;
+	height: 16px;
+}
+
+.bullet-view .bl-mode-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 30px;
+	padding: 0 11px;
+	border: 1px solid transparent;
+	border-radius: 7px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-muted);
+	font-size: 0.8rem;
+	letter-spacing: 0.02em;
+	cursor: pointer;
+	transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.bullet-view .bl-mode-btn:hover {
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-mode-btn.is-active {
+	background: var(--bl-raised);
+	border-color: var(--bl-line);
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-mode-btn .svg-icon {
+	width: 15px;
+	height: 15px;
+}
+
+/* ----------------------------------------------------------- ink toolbar */
+
+.bullet-view .bl-inkbar {
+	display: none;
+	align-items: center;
+	gap: 14px;
+	width: 100%;
+	padding-top: 8px;
+	margin-top: 2px;
+	border-top: 1px solid var(--bl-line);
+}
+
+.bullet-view .bl-inkbar.is-visible {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.bullet-view .bl-swatches,
+.bullet-view .bl-widths,
+.bullet-view .bl-inktools {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.bullet-view .bl-swatch {
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	border: 1px solid var(--bl-line);
+	border-radius: 50%;
+	background: var(--bl-swatch);
+	box-shadow: none;
+	cursor: pointer;
+	transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.bullet-view .bl-swatch.is-active {
+	transform: scale(1.12);
+	box-shadow: 0 0 0 2px var(--bl-bg), 0 0 0 3px var(--bl-accent);
+}
+
+.bullet-view .bl-width {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 7px;
+	background: transparent;
+	box-shadow: none;
+	cursor: pointer;
+}
+
+.bullet-view .bl-width.is-active {
+	border-color: var(--bl-line);
+	background: var(--bl-raised);
+}
+
+.bullet-view .bl-width-dot {
+	border-radius: 50%;
+	background: var(--bl-text);
+}
+
+/* ------------------------------------------------------------------ page */
+
+/* The whole spread fits the window; the panels scroll inside themselves
+   rather than the page scrolling as a whole. */
+.bullet-view .bl-scroll {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.bullet-view .bl-page {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: var(--bl-gap);
+	height: 100%;
+	padding: 12px;
+	overflow: hidden;
+	/* The dot grid from the paper page. */
+	background-image: radial-gradient(var(--bl-dot) 1px, transparent 1px);
+	background-size: 20px 20px;
+	background-position: 8px 8px;
+}
+
+.bullet-view .bl-ink-canvas {
+	position: absolute;
+	inset: 0;
+	z-index: 5;
+	touch-action: auto;
+	pointer-events: none;
+}
+
+.bullet-view .bl-page.is-inking .bl-grid {
+	/* Nothing underneath should steal the pen. */
+	user-select: none;
+}
+
+/* The paper spread: tasks and meetings across the top, trackers and events
+   along the foot. The top row takes whatever height is left over. */
+.bullet-view .bl-grid {
+	display: grid;
+	flex: 1 1 auto;
+	min-height: 0;
+	gap: var(--bl-gap);
+	grid-template-columns: 1fr 1fr;
+	/* fit-content caps the foot of the page: it hugs its content, but never
+	   takes more than 46% and starves the two tall panels. */
+	grid-template-rows: minmax(0, 1fr) minmax(0, fit-content(46%));
+	grid-template-areas:
+		"tasks meetings"
+		"trackers events";
+	align-items: stretch;
+}
+
+.bullet-view .bl-area-tasks {
+	grid-area: tasks;
+}
+.bullet-view .bl-area-meetings {
+	grid-area: meetings;
+}
+.bullet-view .bl-area-trackers {
+	grid-area: trackers;
+}
+.bullet-view .bl-area-events {
+	grid-area: events;
+}
+
+/* ----------------------------------------------------------------- cards */
+
+.bullet-view .bl-card {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	min-height: 0;
+	padding: 13px 11px 8px;
+	border: 1px solid var(--bl-line);
+	border-radius: var(--bl-radius);
+	/* Barely-there fill so the page's dot grid still reads through the card. */
+	background: color-mix(in srgb, var(--bl-panel) 38%, transparent);
+	/* Not hidden: the boxed label overhangs the top border on purpose.
+	   The body does its own clipping and scrolling. */
+	overflow: visible;
+}
+
+/* The boxed section label, echoing the hand-drawn boxes. */
+.bullet-view .bl-label {
+	position: absolute;
+	top: -8px;
+	left: 12px;
+	padding: 0 8px;
+	border: 1px solid var(--bl-line);
+	border-radius: 5px;
+	background: var(--bl-bg);
+	color: var(--bl-muted);
+	font-size: 0.62rem;
+	font-weight: 600;
+	letter-spacing: 0.13em;
+	text-transform: uppercase;
+	z-index: 1;
+}
+
+.bullet-view .bl-card-body {
+	width: 100%;
+	flex: 1 1 auto;
+	min-height: 0;
+	margin-top: 2px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-width: thin;
+}
+
+.bullet-view .bl-empty {
+	padding: 3px 2px;
+	color: var(--bl-faint);
+	font-size: 0.78rem;
+	font-style: italic;
+}
+
+/* ------------------------------------------------------------------ rows */
+
+.bullet-view .bl-row {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	min-height: var(--bl-row-h);
+	padding: 0 2px;
+	border-radius: 5px;
+}
+
+.bullet-view .bl-row:hover {
+	background: color-mix(in srgb, var(--bl-raised) 60%, transparent);
+}
+
+.bullet-view .bl-input {
+	flex: 1 1 auto;
+	min-width: 0;
+	height: calc(var(--bl-row-h) - 3px);
+	padding: 0 2px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-text);
+	font-size: var(--bl-font);
+	line-height: 1.3;
+}
+
+.bullet-view .bl-input::placeholder {
+	color: var(--bl-faint);
+}
+
+.bullet-view .bl-input:focus,
+.bullet-view .bl-input:focus-visible {
+	outline: none;
+	box-shadow: inset 0 -1px 0 0 var(--bl-accent);
+}
+
+.bullet-view .bl-dash {
+	color: var(--bl-faint);
+	font-size: 0.85rem;
+	flex: 0 0 auto;
+}
+
+/* checkbox */
+.bullet-view .bl-check {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 15px;
+	height: 15px;
+	padding: 0;
+	border: 1px solid var(--bl-muted);
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	cursor: pointer;
+	transition: background 120ms ease, border-color 120ms ease;
+}
+
+.bullet-view .bl-check .bl-check-mark {
+	display: flex;
+	opacity: 0;
+	transform: scale(0.7);
+	transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.bullet-view .bl-check .svg-icon {
+	width: 11px;
+	height: 11px;
+	color: var(--bl-bg);
+}
+
+.bullet-view .bl-check.is-checked {
+	border-color: var(--bl-accent);
+	background: var(--bl-accent);
+}
+
+.bullet-view .bl-check.is-checked .bl-check-mark {
+	opacity: 1;
+	transform: scale(1);
+}
+
+.bullet-view .bl-row.is-done .bl-input {
+	color: var(--bl-done);
+	text-decoration: line-through;
+	text-decoration-thickness: 1px;
+}
+
+/* priority flag */
+.bullet-view .bl-star {
+	flex: 0 0 auto;
+	width: 13px;
+	height: 13px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: transparent;
+	font-size: 0.7rem;
+	line-height: 1;
+	cursor: pointer;
+	transition: color 120ms ease;
+}
+
+.bullet-view .bl-row:hover .bl-star {
+	color: var(--bl-faint);
+}
+
+.bullet-view .bl-star.is-on,
+.bullet-view .bl-row:hover .bl-star.is-on {
+	color: var(--bl-accent);
+}
+
+/* delete */
+.bullet-view .bl-del {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	border: none;
+	border-radius: 5px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-faint);
+	opacity: 0;
+	cursor: pointer;
+	transition: opacity 120ms ease, color 120ms ease;
+}
+
+.bullet-view .bl-row:hover .bl-del,
+.bullet-view .bl-del:focus-visible {
+	opacity: 1;
+}
+
+.bullet-view .bl-del:hover {
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-del .svg-icon {
+	width: 11px;
+	height: 11px;
+}
+
+/* add buttons */
+.bullet-view .bl-add-inline {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 21px;
+	margin-top: 4px;
+	padding: 0 8px;
+	border: 1px dashed var(--bl-line);
+	border-radius: 5px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-faint);
+	font-size: 0.7rem;
+	letter-spacing: 0.03em;
+	cursor: pointer;
+	transition: color 120ms ease, border-color 120ms ease;
+}
+
+.bullet-view .bl-add-inline:hover {
+	color: var(--bl-text);
+	border-color: var(--bl-muted);
+}
+
+.bullet-view .bl-add-inline .svg-icon {
+	width: 12px;
+	height: 12px;
+}
+
+/* -------------------------------------------------------------- meetings */
+
+.bullet-view .bl-day {
+	padding: 3px 0 4px;
+	border-bottom: 1px solid var(--bl-line);
+}
+
+.bullet-view .bl-day:last-of-type {
+	border-bottom: none;
+}
+
+.bullet-view .bl-day-head {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 19px;
+}
+
+.bullet-view .bl-day-add {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 17px;
+	height: 17px;
+	margin-left: auto;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-faint);
+	opacity: 0;
+	cursor: pointer;
+	transition: opacity 120ms ease, color 120ms ease;
+}
+
+.bullet-view .bl-day-add .svg-icon {
+	width: 11px;
+	height: 11px;
+}
+
+.bullet-view .bl-day:hover .bl-day-add,
+.bullet-view .bl-day-add:focus-visible {
+	opacity: 1;
+}
+
+.bullet-view .bl-day-add:hover {
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-day-name {
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-day.is-empty .bl-day-name {
+	color: var(--bl-faint);
+	font-weight: 500;
+}
+
+.bullet-view .bl-day-date {
+	font-size: 0.63rem;
+	color: var(--bl-faint);
+	font-variant-numeric: tabular-nums;
+}
+
+.bullet-view .bl-time-input {
+	flex: 0 0 auto;
+	width: 42px;
+	font-variant-numeric: tabular-nums;
+	color: var(--bl-muted);
+}
+
+/* -------------------------------------------------------------- trackers */
+
+.bullet-view .bl-habit-table {
+	display: grid;
+	grid-template-columns: minmax(66px, 1.25fr) repeat(7, minmax(0, 1fr));
+	gap: 1px;
+	margin-top: 1px;
+	border: 1px solid var(--bl-line);
+	border-radius: 8px;
+	background: var(--bl-line);
+	overflow: hidden;
+}
+
+.bullet-view .bl-habit-table > * {
+	background: var(--bl-panel);
+}
+
+.bullet-view .bl-habit-corner,
+.bullet-view .bl-habit-dayhead {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 19px;
+	background: var(--bl-raised);
+	color: var(--bl-muted);
+	font-size: 0.62rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+}
+
+.bullet-view .bl-habit-dayhead.is-weekend {
+	color: var(--bl-faint);
+}
+
+.bullet-view .bl-habit-name {
+	height: 23px;
+	padding: 0 7px;
+	font-size: 0.72rem;
+	color: var(--bl-muted);
+}
+
+.bullet-view .bl-habit-cell {
+	height: 23px;
+	padding: 0;
+	text-align: center;
+	font-size: 0.76rem;
+}
+
+.bullet-view .bl-habit-cell.is-weekend {
+	background: color-mix(in srgb, var(--bl-panel) 70%, var(--bl-bg));
+}
+
+/* time chart */
+.bullet-view .bl-time {
+	width: 100%;
+	margin-top: 9px;
+}
+
+.bullet-view .bl-time-label {
+	height: 17px;
+	margin-bottom: 5px;
+	color: var(--bl-muted);
+	font-size: 0.62rem;
+	font-weight: 600;
+	letter-spacing: 0.13em;
+	text-transform: uppercase;
+}
+
+.bullet-view .bl-time-chart {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	gap: 4px;
+	align-items: end;
+}
+
+.bullet-view .bl-time-col {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 3px;
+	min-width: 0;
+}
+
+.bullet-view .bl-time-stack {
+	display: flex;
+	flex-direction: column-reverse;
+	justify-content: flex-start;
+	gap: 2px;
+	width: 100%;
+	min-height: calc(var(--bl-max, 4) * 12px);
+	padding: 2px;
+	border-radius: 5px;
+	background: color-mix(in srgb, var(--bl-raised) 55%, transparent);
+}
+
+.bullet-view .bl-time-col.is-weekend .bl-time-stack {
+	background: color-mix(in srgb, var(--bl-raised) 28%, transparent);
+}
+
+.bullet-view .bl-time-block {
+	height: 10px;
+	border-radius: 3px;
+	background: var(--bl-block);
+	opacity: 0.86;
+	cursor: pointer;
+	transition: opacity 120ms ease;
+}
+
+.bullet-view .bl-time-block:hover {
+	opacity: 1;
+}
+
+.bullet-view .bl-time-add {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	border: 1px dashed var(--bl-line);
+	border-radius: 5px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-faint);
+	cursor: pointer;
+}
+
+.bullet-view .bl-time-add:hover {
+	color: var(--bl-text);
+	border-color: var(--bl-muted);
+}
+
+.bullet-view .bl-time-add .svg-icon {
+	width: 12px;
+	height: 12px;
+}
+
+.bullet-view .bl-time-day {
+	color: var(--bl-faint);
+	font-size: 0.62rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+}
+
+.bullet-view .bl-legend {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 10px;
+	margin-top: 8px;
+}
+
+.bullet-view .bl-legend-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.bullet-view .bl-legend-dot {
+	width: 9px;
+	height: 9px;
+	flex: 0 0 auto;
+	border-radius: 2px;
+	background: var(--bl-block);
+}
+
+.bullet-view .bl-legend-code {
+	width: 38px;
+	height: 19px;
+	font-size: 0.68rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	color: var(--bl-muted);
+}
+
+.bullet-view .bl-legend-total {
+	color: var(--bl-faint);
+	font-size: 0.65rem;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- events */
+
+.bullet-view .bl-event-day {
+	flex: 0 0 auto;
+	width: 78px;
+	color: var(--bl-muted);
+	font-size: 0.78rem;
+}
+
+/* ----------------------------------------------------------------- notes */
+
+/* A folded strip along the foot of the page. Closed it is one line high and
+   shows the first line of what is written; open it takes a fixed slice. */
+.bullet-view .bl-notes-strip {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--bl-line);
+	border-radius: var(--bl-radius);
+	background: color-mix(in srgb, var(--bl-panel) 38%, transparent);
+	overflow: hidden;
+}
+
+.bullet-view .bl-notes-toggle {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	width: 100%;
+	height: 24px;
+	padding: 0 10px;
+	border: none;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-muted);
+	cursor: pointer;
+	text-align: left;
+}
+
+.bullet-view .bl-notes-toggle:hover {
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-notes-caret {
+	display: flex;
+	flex: 0 0 auto;
+	transition: transform 140ms ease;
+}
+
+.bullet-view .bl-notes-caret .svg-icon {
+	width: 12px;
+	height: 12px;
+}
+
+.bullet-view .bl-notes-strip.is-open .bl-notes-caret {
+	transform: rotate(90deg);
+}
+
+.bullet-view .bl-notes-title {
+	flex: 0 0 auto;
+	font-size: 0.62rem;
+	font-weight: 600;
+	letter-spacing: 0.13em;
+	text-transform: uppercase;
+}
+
+.bullet-view .bl-notes-preview {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: var(--bl-faint);
+	font-size: 0.72rem;
+}
+
+.bullet-view .bl-notes {
+	display: none;
+	width: 100%;
+	height: 84px;
+	padding: 2px 10px 8px;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-text);
+	font-family: inherit;
+	font-size: var(--bl-font);
+	line-height: 1.5;
+	resize: none;
+}
+
+.bullet-view .bl-notes-strip.is-open .bl-notes {
+	display: block;
+}
+
+.bullet-view .bl-notes:focus,
+.bullet-view .bl-notes:focus-visible {
+	outline: none;
+}
+
+/* ------------------------------------------------------- smaller screens */
+
+/* The spread stays two-up at every size — that is the point of the page.
+   Only the spacing and type tighten as the window narrows. */
+
+@media (max-width: 1100px) {
+	.bullet-view {
+		--bl-gap: 8px;
+		--bl-row-h: 24px;
+		--bl-font: 0.8rem;
+	}
+
+	.bullet-view .bl-page {
+		padding: 10px;
+	}
+
+	.bullet-view .bl-event-day {
+		width: 68px;
+	}
+}
+
+/* Coarse pointers get bigger targets and no hover-only affordances. */
+@media (pointer: coarse) {
+	.bullet-view {
+		--bl-row-h: 30px;
+	}
+
+	.bullet-view .bl-del,
+	.bullet-view .bl-day-add {
+		opacity: 0.5;
+	}
+
+	.bullet-view .bl-star {
+		color: var(--bl-faint);
+	}
+
+	.bullet-view .bl-check {
+		width: 17px;
+		height: 17px;
+	}
+}
+
+@media (max-width: 820px) {
+	.bullet-view {
+		--bl-gap: 7px;
+		--bl-row-h: 23px;
+		--bl-font: 0.76rem;
+	}
+
+	.bullet-view .bl-toolbar {
+		padding: 5px 8px;
+		gap: 5px;
+	}
+
+	.bullet-view .bl-week-title {
+		font-size: 0.8rem;
+		padding: 0 3px;
+	}
+
+	.bullet-view .bl-icon-btn {
+		width: 26px;
+		height: 26px;
+	}
+
+	.bullet-view .bl-page {
+		padding: 8px;
+	}
+
+	.bullet-view .bl-habit-table {
+		grid-template-columns: minmax(52px, 1.1fr) repeat(7, minmax(0, 1fr));
+	}
+
+	.bullet-view .bl-event-day {
+		width: 56px;
+		font-size: 0.7rem;
+	}
+
+	.bullet-view .bl-time-input {
+		width: 36px;
+	}
+
+	/* The day name is the anchor; the date can go. */
+	.bullet-view .bl-day-date {
+		display: none;
+	}
+}
+
+@media (max-width: 560px) {
+	.bullet-view {
+		--bl-gap: 6px;
+		--bl-row-h: 22px;
+		--bl-font: 0.72rem;
+	}
+
+	.bullet-view .bl-mode-btn span:last-child {
+		display: none;
+	}
+
+	.bullet-view .bl-mode-btn {
+		padding: 0 7px;
+	}
+
+	.bullet-view .bl-page {
+		padding: 6px;
+	}
+
+	.bullet-view .bl-card {
+		padding: 11px 7px 6px;
+	}
+
+	.bullet-view .bl-label {
+		left: 8px;
+		font-size: 0.56rem;
+		letter-spacing: 0.1em;
+	}
+
+	.bullet-view .bl-star {
+		display: none;
+	}
+
+	.bullet-view .bl-legend-code {
+		width: 32px;
+	}
+}
