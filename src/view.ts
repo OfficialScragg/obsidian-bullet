@@ -77,6 +77,7 @@ export class BulletView extends TextFileView {
 	private mode: InkMode = "off";
 	private notesOpen = false;
 	private zoomValueEl: HTMLElement | null = null;
+	private latencyEl: HTMLElement | null = null;
 
 	/** What we last handed to disk, so an echoed save costs no work. */
 	private lastSerialized = "";
@@ -266,6 +267,7 @@ export class BulletView extends TextFileView {
 		this.ink = null;
 
 		this.zoomValueEl = null;
+		this.latencyEl = null;
 		this.toolbarEl = root.createDiv({ cls: "bl-toolbar" });
 		this.renderToolbar(this.toolbarEl);
 
@@ -398,6 +400,16 @@ export class BulletView extends TextFileView {
 		});
 		this.iconButton(tools, "undo", "Undo stroke", () => this.ink?.undo());
 		this.iconButton(tools, "redo", "Redo stroke", () => this.ink?.redo());
+		this.latencyEl = bar.createDiv({ cls: "bl-latency" });
+		this.latencyEl.setText("pen —");
+		this.latencyEl.setAttr(
+			"aria-label",
+			"Time from pen down to ink on screen, and the gap between drawing frames"
+		);
+
+		this.iconButton(tools, "gauge", "Ink performance", () => {
+			this.plugin.openDiagnostics(this);
+		});
 		this.iconButton(tools, "trash", "Clear all ink", () => {
 			if (!this.ink?.canUndo()) return;
 			this.ink.clear();
@@ -413,6 +425,12 @@ export class BulletView extends TextFileView {
 			width: this.penWidth,
 			maxDpr: this.plugin.settings.maxInkDpr,
 			onChange: () => this.touchInk(),
+			onLatency: (penMs, frameMs) => {
+				if (!this.latencyEl) return;
+				this.latencyEl.setText(
+					`pen ${Math.round(penMs)} ms · frame ${Math.round(frameMs)} ms`
+				);
+			},
 		});
 		this.ink.setStrokes(this.model.ink);
 		this.ink.observe(this.pageEl, this.scrollEl);

@@ -211,6 +211,15 @@
 	flex-wrap: wrap;
 }
 
+.bullet-view .bl-latency {
+	margin-left: auto;
+	padding: 0 0.4em;
+	color: var(--bl-faint);
+	font-size: 0.78em;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
 .bullet-view .bl-swatches,
 .bullet-view .bl-widths,
 .bullet-view .bl-inktools {

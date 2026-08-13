@@ -78,9 +78,11 @@ the page while a finger still scrolls it — that's the default, and it means yo
 palm is ignored. If you'd rather draw with a finger too, turn on *Draw with
 finger* in settings.
 
-If writing ever feels slow, run **Bullet: Diagnose ink performance** — it
-measures canvas size, paint cost and save cost on the device you're actually
-using, and copies the numbers to the clipboard.
+While drawing, the right of the ink toolbar shows how long the last stroke took
+to appear and the gap between drawing frames. The gauge button next to the bin
+opens the full report — canvas size, paint, redraw and save cost — which you can
+copy or write into the vault as a note. No command palette needed, which matters
+on a tablet.
 
 The eraser removes whole strokes rather than nibbling at them, which is far more
 predictable on a touch screen. Undo and redo apply to strokes only; they don't

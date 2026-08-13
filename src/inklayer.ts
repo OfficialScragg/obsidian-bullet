@@ -10,6 +10,8 @@ export interface InkLayerOptions {
 	/** Upper bound on the canvas backing-store scale. */
 	maxDpr: number;
 	onChange: () => void;
+	/** Reports how the last stroke performed, for the on-screen readout. */
+	onLatency?: (penMs: number, frameMs: number) => void;
 }
 
 const MAX_DPR = 2;
@@ -54,6 +56,8 @@ export class InkLayer {
 	private strokeStartedAt = 0;
 	private firstPaintMs: number[] = [];
 	private frameMs: number[] = [];
+	private frameIntervalMs: number[] = [];
+	private lastFrameAt = 0;
 	private observedTarget: HTMLElement | null = null;
 
 	/** Cached encoding of the strokes, grown as strokes are added. */
@@ -159,6 +163,8 @@ export class InkLayer {
 		firstPaintMs: number;
 		worstFirstPaintMs: number;
 		frameMs: number;
+		frameIntervalMs: number;
+		worstFrameIntervalMs: number;
 		samples: number;
 	} {
 		const points = this.strokes.reduce((n, s) => n + s.points.length, 0);
@@ -194,6 +200,10 @@ export class InkLayer {
 				? Math.max(...this.firstPaintMs)
 				: 0,
 			frameMs: mean(this.frameMs),
+			frameIntervalMs: mean(this.frameIntervalMs),
+			worstFrameIntervalMs: this.frameIntervalMs.length
+				? Math.max(...this.frameIntervalMs)
+				: 0,
 			samples: this.firstPaintMs.length,
 			strokes: this.strokes.length,
 			points,
@@ -422,8 +432,25 @@ export class InkLayer {
 			if (this.firstPaintMs.length > 40) this.firstPaintMs.shift();
 			this.strokeStartedAt = 0;
 		}
-		this.frameMs.push(performance.now() - frameStart);
+		const now = performance.now();
+		this.frameMs.push(now - frameStart);
 		if (this.frameMs.length > 60) this.frameMs.shift();
+
+		// Gap between consecutive drawing frames. If this is far above one
+		// display frame, the hold-up is the main thread or the compositor
+		// rather than anything measured inside this class.
+		if (this.lastFrameAt && now - this.lastFrameAt < 500) {
+			this.frameIntervalMs.push(now - this.lastFrameAt);
+			if (this.frameIntervalMs.length > 60) this.frameIntervalMs.shift();
+		}
+		this.lastFrameAt = now;
+
+		if (this.opts.onLatency) {
+			this.opts.onLatency(
+				this.firstPaintMs[this.firstPaintMs.length - 1] ?? 0,
+				this.frameIntervalMs[this.frameIntervalMs.length - 1] ?? 0
+			);
+		}
 	};
 
 	private onPointerUp = (e: PointerEvent): void => {

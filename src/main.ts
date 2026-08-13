@@ -113,9 +113,7 @@ export default class BulletPlugin extends Plugin {
 				const view = leaf?.view;
 				const isBullet = view instanceof BulletView;
 				if (checking) return isBullet;
-				if (view instanceof BulletView) {
-					new InkDiagnosticsModal(this.app, view).open();
-				}
+				if (view instanceof BulletView) this.openDiagnostics(view);
 				return true;
 			},
 		});
@@ -151,6 +149,10 @@ export default class BulletPlugin extends Plugin {
 
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
+	}
+
+	openDiagnostics(view: BulletView): void {
+		new InkDiagnosticsModal(this.app, view, this).open();
 	}
 
 	refreshAllViews(): void {
