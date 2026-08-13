@@ -334,6 +334,17 @@
 	user-select: none;
 }
 
+/* touch-action is consulted up the ancestor chain, so setting it on the canvas
+   alone leaves the containers above it still offering gestures — and WebKit
+   will hold the next contact back while it waits to see whether a gesture is
+   starting. While the pen is down, nothing above the canvas offers one. */
+.bullet-view .bl-page.is-inking,
+.bullet-view .bl-page.is-inking .bl-notes-strip,
+.bullet-view:has(.bl-page.is-inking) .bl-scroll {
+	touch-action: none;
+	-webkit-touch-callout: none;
+}
+
 /* The paper spread: tasks and meetings across the top, trackers and events
    along the foot. */
 .bullet-view .bl-grid {

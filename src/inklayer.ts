@@ -70,6 +70,15 @@ export class InkLayer {
 	private downCount = 0;
 	private strokeCount = 0;
 
+	/**
+	 * Two measurements that separate "we are slow" from "the event arrived
+	 * late": how long the system sat on each event before handing it over, and
+	 * how long after a lift the next contact was allowed through.
+	 */
+	private deliveryMs: number[] = [];
+	private sinceLiftMs: number[] = [];
+	private lastLiftAt = 0;
+
 	/** Timing of recent strokes, for the diagnostics command. */
 	private strokeStartedAt = 0;
 	private firstPaintMs: number[] = [];
@@ -261,6 +270,10 @@ export class InkLayer {
 		rectMs: number;
 		paintMs: number;
 		redrawMs: number;
+		deliveryMs: number;
+		worstDeliveryMs: number;
+		sinceLiftMs: number;
+		shortestSinceLiftMs: number;
 		firstPaintMs: number;
 		worstFirstPaintMs: number;
 		frameMs: number;
@@ -296,6 +309,12 @@ export class InkLayer {
 			xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 
 		return {
+			deliveryMs: mean(this.deliveryMs),
+			worstDeliveryMs: this.deliveryMs.length ? Math.max(...this.deliveryMs) : 0,
+			sinceLiftMs: mean(this.sinceLiftMs),
+			shortestSinceLiftMs: this.sinceLiftMs.length
+				? Math.min(...this.sinceLiftMs)
+				: 0,
 			firstPaintMs: mean(this.firstPaintMs),
 			worstFirstPaintMs: this.firstPaintMs.length
 				? Math.max(...this.firstPaintMs)
@@ -501,7 +520,25 @@ export class InkLayer {
 		this.pending.length = 0;
 		this.strokeStartedAt = performance.now();
 		this.moveCount = 0;
-		this.log(e, "stroke start");
+
+		// e.timeStamp is when the system created the event; performance.now()
+		// is when it reached us. The difference is delivery latency, and it is
+		// invisible to every other measurement here.
+		const delivery = performance.now() - e.timeStamp;
+		if (Number.isFinite(delivery) && delivery >= 0 && delivery < 5000) {
+			this.deliveryMs.push(delivery);
+			if (this.deliveryMs.length > 40) this.deliveryMs.shift();
+		}
+		const sinceLift = this.lastLiftAt ? performance.now() - this.lastLiftAt : 0;
+		if (sinceLift > 0 && sinceLift < 5000) {
+			this.sinceLiftMs.push(sinceLift);
+			if (this.sinceLiftMs.length > 40) this.sinceLiftMs.shift();
+		}
+
+		this.log(
+			e,
+			`stroke start (delivered ${delivery.toFixed(0)}ms late, ${sinceLift.toFixed(0)}ms since lift)`
+		);
 
 		const point = this.toInk(e);
 
@@ -664,6 +701,7 @@ export class InkLayer {
 		this.renderFrame();
 
 		this.activePointerId = null;
+		this.lastLiftAt = performance.now();
 		// Stop timing across the lift: the pause between two strokes is the
 		// writer thinking, not a stall, and counting it made the frame-gap
 		// figure meaningless.

@@ -43,6 +43,18 @@ export class InkDiagnosticsModal extends Modal {
 
 		const rows: [string, string][] = [
 			[
+				"Event held by the system before reaching us",
+				canvas.samples
+					? `${canvas.deliveryMs.toFixed(1)} ms avg, ${canvas.worstDeliveryMs.toFixed(1)} ms worst`
+					: "n/a",
+			],
+			[
+				"Lift to next contact",
+				canvas.sinceLiftMs
+					? `${canvas.sinceLiftMs.toFixed(0)} ms avg, ${canvas.shortestSinceLiftMs.toFixed(0)} ms shortest`
+					: "n/a",
+			],
+			[
 				"Pen down to ink on screen",
 				canvas.samples
 					? `${canvas.firstPaintMs.toFixed(1)} ms avg, ${canvas.worstFirstPaintMs.toFixed(1)} ms worst (last ${canvas.samples} sampled)`
