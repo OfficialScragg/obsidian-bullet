@@ -22,6 +22,8 @@ export interface BulletSettings {
 	maxInkDpr: number;
 	/** Page zoom as a percentage; also adjustable from the toolbar. */
 	uiScale: number;
+	/** Minutes between entries in the meeting time picker. */
+	meetingTimeStep: number;
 }
 
 export const DEFAULT_SETTINGS: BulletSettings = {
@@ -42,6 +44,7 @@ export const DEFAULT_SETTINGS: BulletSettings = {
 	compactInk: true,
 	maxInkDpr: 2,
 	uiScale: 100,
+	meetingTimeStep: 30,
 };
 
 function parseList(raw: string): string[] {
@@ -214,6 +217,22 @@ export class BulletSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 			});
+
+		new Setting(containerEl)
+			.setName("Meeting times")
+			.setDesc("How far apart the entries in the time picker are.")
+			.addDropdown((d) =>
+				d
+					.addOption("15", "Every 15 minutes")
+					.addOption("30", "Every half hour")
+					.addOption("60", "Every hour")
+					.setValue(String(this.plugin.settings.meetingTimeStep))
+					.onChange(async (v) => {
+						this.plugin.settings.meetingTimeStep = Number(v) || 30;
+						await this.plugin.saveSettings();
+						this.plugin.refreshAllViews();
+					})
+			);
 
 		new Setting(containerEl)
 			.setName("Recurring meetings")

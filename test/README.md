@@ -33,3 +33,15 @@ its own copy of the star, looked fine.
 npx esbuild src/icons.ts --bundle --format=esm --outfile=test/icons.mjs
 open test/icons.test.html
 ```
+
+## Logic tests
+
+Plain node, no browser. Bundle the module beside the test, then run it:
+
+```bash
+npx esbuild src/date.ts      --bundle --format=esm --platform=node --outfile=test/date.mjs
+npx esbuild src/serialize.ts --bundle --format=esm --platform=node --external:obsidian --outfile=test/bundle.mjs
+node test/time.test.mjs        # time parsing and meeting order
+node test/date.test.mjs        # ISO weeks and filenames
+node test/serialize.test.mjs   # note round-tripping
+```

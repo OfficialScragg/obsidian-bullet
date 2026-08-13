@@ -109,3 +109,28 @@ export function weekKey(start: Date): string {
 	const { year, week } = isoWeek(start);
 	return `${year}-W${pad(week)}`;
 }
+
+/**
+ * Minutes past midnight for an "HH:MM" time, or Infinity when it cannot be
+ * read. Infinity is deliberate: it sorts anything untimed to the end of the
+ * day rather than to the start of it.
+ */
+export function timeToMinutes(time: string): number {
+	const m = /^(\d{1,2})[:.](\d{2})$/.exec(time.trim());
+	if (!m) return Number.POSITIVE_INFINITY;
+	const hours = Number(m[1]);
+	const minutes = Number(m[2]);
+	if (hours > 23 || minutes > 59) return Number.POSITIVE_INFINITY;
+	return hours * 60 + minutes;
+}
+
+/** Minutes past midnight as "HH:MM". */
+export function minutesToTime(total: number): string {
+	const clamped = Math.max(0, Math.min(23 * 60 + 59, Math.round(total)));
+	return `${pad(Math.floor(clamped / 60))}:${pad(clamped % 60)}`;
+}
+
+/** Earliest first, untimed last, and equal times keep the order given. */
+export function byTime<T extends { time: string }>(items: T[]): T[] {
+	return items.sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+}

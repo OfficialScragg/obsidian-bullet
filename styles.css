@@ -19,7 +19,7 @@
 .bullet-view {
 	/* Bumped with each release; the diagnostics report reads it back, so a
 	   stale stylesheet can be told apart from one that is being overridden. */
-	--bl-css-version: "1.0.17";
+	--bl-css-version: "1.0.18";
 
 	--bl-scale: 1;
 	--bl-auto: 1;
@@ -812,11 +812,60 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.bullet-view .bl-time-input {
+/* time picker */
+.bullet-view .bl-time-wrap {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
 	flex: 0 0 auto;
-	width: 3.3em;
-	font-variant-numeric: tabular-nums;
 	color: var(--bl-muted);
+}
+
+/* The caret is drawn here rather than on the select, so it takes the current
+   colour and the select itself can stay a plain piece of text. */
+.bullet-view .bl-time-wrap::after {
+	content: "";
+	position: absolute;
+	inset-inline-end: 0.4em;
+	width: 0.36em;
+	height: 0.36em;
+	border-right: 1.5px solid currentColor;
+	border-bottom: 1.5px solid currentColor;
+	transform: translateY(-0.12em) rotate(45deg);
+	opacity: 0.55;
+	pointer-events: none;
+}
+
+.bullet-view .bl-time-select {
+	width: 4.7em;
+	height: calc(var(--bl-row-h) - 0.25em);
+	padding: 0 1.2em 0 0.2em;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: inherit;
+	font-size: 1em;
+	font-variant-numeric: tabular-nums;
+	appearance: none;
+	-webkit-appearance: none;
+	cursor: pointer;
+}
+
+.bullet-view .bl-time-wrap:hover {
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-time-select:focus,
+.bullet-view .bl-time-select:focus-visible {
+	outline: none;
+	box-shadow: inset 0 -1px 0 0 var(--bl-accent);
+}
+
+/* the native list, where the platform lets us style it */
+.bullet-view .bl-time-select option {
+	background: var(--bl-panel);
+	color: var(--bl-text);
 }
 
 /* -------------------------------------------------------------- trackers */

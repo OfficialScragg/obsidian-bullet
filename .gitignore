@@ -6,3 +6,5 @@ data.json
 package-lock.json
 
 test/*.mjs
+test/*.mjs
+!test/*.test.mjs

@@ -14,7 +14,13 @@ import {
 } from "./types";
 import { parseNote, readExtraFrontmatter, serializeNote } from "./serialize";
 import { InkLayer, InkMode } from "./inklayer";
-import { addDays, parseISODate } from "./date";
+import {
+	addDays,
+	byTime,
+	minutesToTime,
+	parseISODate,
+	timeToMinutes,
+} from "./date";
 import { bulletDot, bulletIcon, bulletSwatch } from "./icons";
 import type BulletPlugin from "./main";
 
@@ -620,6 +626,7 @@ export class BulletView extends TextFileView {
 
 		this.dayOrder.forEach((day, column) => {
 			const items = this.model.meetings[day] ?? (this.model.meetings[day] = []);
+			this.sortDay(day);
 			const block = host.createDiv({ cls: "bl-day" });
 			block.dataset.day = String(day);
 			if (items.length === 0) block.addClass("is-empty");
@@ -632,15 +639,16 @@ export class BulletView extends TextFileView {
 			bulletIcon(add, "plus");
 			add.setAttr("aria-label", `Add a meeting on ${DAY_NAMES[day]}`);
 			add.onclick = () => {
-				items.push({ id: uid("m"), time: "", text: "" });
+				const fresh: Meeting = {
+					id: uid("m"),
+					time: this.nextSlot(items),
+					text: "",
+				};
+				items.push(fresh);
+				this.sortDay(day);
 				this.renderMeetings();
-				// Focus the row just added, not whichever day happens to sort last.
-				this.focusLast(
-					this.hosts.meetings?.querySelector<HTMLElement>(
-						`.bl-day[data-day="${day}"]`
-					) ?? undefined,
-					".bl-time-input"
-				);
+				// Focus the row just added, wherever the sort has put it.
+				this.focusMeeting(day, fresh.id);
 				this.touch();
 			};
 
@@ -648,17 +656,22 @@ export class BulletView extends TextFileView {
 
 			items.forEach((item, index) => {
 				const row = list.createDiv({ cls: "bl-row bl-meeting" });
+				row.dataset.id = item.id;
 
-				const time = row.createEl("input", {
-					cls: "bl-input bl-time-input",
-					attr: { type: "text", placeholder: "00:00", value: item.time },
-				});
-				time.oninput = () => {
+				const timeWrap = row.createDiv({ cls: "bl-time-wrap" });
+				const time = timeWrap.createEl("select", { cls: "bl-time-select" });
+				this.fillTimeOptions(time, item.time);
+				time.value = item.time;
+				time.setAttr("aria-label", "Time");
+				time.onchange = () => {
 					item.time = time.value;
+					// A time change is the only thing that can reorder a day,
+					// so re-sort here rather than on every keystroke.
+					this.sortDay(day);
+					this.renderMeetings();
+					this.focusMeeting(day, item.id);
 					this.touch();
 				};
-
-				row.createSpan({ cls: "bl-dash", text: "—" });
 
 				const text = row.createEl("input", {
 					cls: "bl-input",
@@ -671,7 +684,11 @@ export class BulletView extends TextFileView {
 				text.onkeydown = (e) =>
 					this.listKeys(e, text, index, {
 						insert: (at) =>
-							items.splice(at, 0, { id: uid("m"), time: "", text: "" }),
+							items.splice(at, 0, {
+								id: uid("m"),
+								time: this.nextSlot(items),
+								text: "",
+							}),
 						remove: (at) => items.splice(at, 1),
 						isEmpty: () => item.text.length === 0 && item.time.length === 0,
 						rerender: () => this.renderMeetings(),
@@ -686,6 +703,47 @@ export class BulletView extends TextFileView {
 			});
 
 		});
+	}
+
+	/** Earliest first; anything without a time sits at the end. */
+	private sortDay(day: number): void {
+		const items = this.model.meetings[day];
+		if (items) byTime(items);
+	}
+
+	/** A sensible time for a new meeting: one step after the last one. */
+	private nextSlot(items: Meeting[]): string {
+		const step = this.plugin.settings.meetingTimeStep;
+		let latest = -1;
+		for (const item of items) {
+			const minutes = timeToMinutes(item.time);
+			if (Number.isFinite(minutes)) latest = Math.max(latest, minutes);
+		}
+		if (latest < 0) return minutesToTime(9 * 60);
+		return minutesToTime(latest + step);
+	}
+
+	private fillTimeOptions(select: HTMLSelectElement, current: string): void {
+		select.createEl("option", { value: "", text: "--:--" });
+
+		const step = this.plugin.settings.meetingTimeStep;
+		const slots: string[] = [];
+		for (let m = 0; m < 24 * 60; m += step) slots.push(minutesToTime(m));
+
+		// Keep a time that predates the current step setting selectable.
+		if (current && !slots.includes(current)) {
+			select.createEl("option", { value: current, text: current });
+		}
+		for (const slot of slots) {
+			select.createEl("option", { value: slot, text: slot });
+		}
+	}
+
+	private focusMeeting(day: number, id: string): void {
+		const row = this.hosts.meetings?.querySelector<HTMLElement>(
+			`.bl-day[data-day="${day}"] .bl-meeting[data-id="${id}"]`
+		);
+		row?.querySelector<HTMLInputElement>("input.bl-input")?.focus();
 	}
 
 	private renderEvents(): void {
