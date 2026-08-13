@@ -15,7 +15,7 @@ import {
 import { parseNote, readExtraFrontmatter, serializeNote } from "./serialize";
 import { InkLayer, InkMode } from "./inklayer";
 import { addDays, parseISODate } from "./date";
-import { bulletIcon } from "./icons";
+import { bulletDot, bulletIcon } from "./icons";
 import type BulletPlugin from "./main";
 
 const PROJECT_COLORS = [
@@ -29,6 +29,9 @@ const PROJECT_COLORS = [
 ];
 
 const PEN_WIDTH_STEPS = [1.4, 2.4, 4, 6.5];
+
+/** Dot radius shown on each stroke-width button, in the icon's 24x24 space. */
+const PEN_WIDTH_RADII = [2.5, 4, 6, 8.5];
 
 /** Zoom steps for the toolbar control, as percentages. */
 export const SCALE_STEPS = [70, 80, 90, 100, 110, 125, 140, 160, 180, 200];
@@ -167,6 +170,11 @@ export class BulletView extends TextFileView {
 		window.clearTimeout(this.saveTimer);
 		this.saveTimer = window.setTimeout(() => {
 			this.saveTimer = 0;
+			// Never serialise the page mid-stroke; wait for the pen to lift.
+			if (this.ink?.isDrawing()) {
+				this.scheduleSave(400);
+				return;
+			}
 			this.savePendingSince = 0;
 			this.requestSave();
 		}, Math.min(delay, remaining));
@@ -194,6 +202,7 @@ export class BulletView extends TextFileView {
 			!this.plugin.settings.useThemeColors
 		);
 		this.applyScale();
+		this.ink?.setMaxDpr(this.plugin.settings.maxInkDpr);
 	}
 
 	/** The whole page is sized off this one number. */
@@ -337,11 +346,9 @@ export class BulletView extends TextFileView {
 		const widths = bar.createDiv({ cls: "bl-widths" });
 		const paintWidths = () => {
 			widths.empty();
-			for (const w of PEN_WIDTH_STEPS) {
+			PEN_WIDTH_STEPS.forEach((w, index) => {
 				const btn = widths.createEl("button", { cls: "bl-width" });
-				const dot = btn.createDiv({ cls: "bl-width-dot" });
-				dot.style.width = `${w * 2}px`;
-				dot.style.height = `${w * 2}px`;
+				bulletDot(btn.createSpan({ cls: "bl-width-dot" }), PEN_WIDTH_RADII[index]);
 				btn.toggleClass("is-active", Math.abs(w - this.penWidth) < 0.01);
 				btn.setAttr("aria-label", `Pen width ${w}`);
 				btn.onclick = () => {
@@ -352,7 +359,7 @@ export class BulletView extends TextFileView {
 					paintSwatches();
 					syncModeButtons();
 				};
-			}
+			});
 		};
 		paintWidths();
 
@@ -378,6 +385,7 @@ export class BulletView extends TextFileView {
 			fingerDraw: this.plugin.settings.fingerDraw,
 			color: this.penColor,
 			width: this.penWidth,
+			maxDpr: this.plugin.settings.maxInkDpr,
 			onChange: () => this.touchInk(),
 		});
 		this.ink.setStrokes(this.model.ink);
@@ -394,6 +402,15 @@ export class BulletView extends TextFileView {
 		});
 		this.ink?.setMode(mode);
 		this.pageEl?.toggleClass("is-inking", mode !== "off");
+
+		// iPadOS Scribble engages over editable fields and delays pen input
+		// while it decides whether you are writing into one. Making the panels
+		// inert while drawing takes them out of its reach.
+		const grid = this.pageEl?.querySelector<HTMLElement>(".bl-grid");
+		if (grid) grid.toggleAttribute("inert", mode !== "off");
+		if (mode !== "off" && document.activeElement instanceof HTMLElement) {
+			document.activeElement.blur();
+		}
 	}
 
 	// -- sections ----------------------------------------------------------

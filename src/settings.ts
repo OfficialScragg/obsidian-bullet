@@ -18,6 +18,8 @@ export interface BulletSettings {
 	fingerDraw: boolean;
 	useThemeColors: boolean;
 	compactInk: boolean;
+	/** Cap on the ink canvas backing-store scale. */
+	maxInkDpr: number;
 	/** Page zoom as a percentage; also adjustable from the toolbar. */
 	uiScale: number;
 }
@@ -38,6 +40,7 @@ export const DEFAULT_SETTINGS: BulletSettings = {
 	fingerDraw: false,
 	useThemeColors: false,
 	compactInk: true,
+	maxInkDpr: 2,
 	uiScale: 100,
 };
 
@@ -254,6 +257,24 @@ export class BulletSettingTab extends PluginSettingTab {
 					.onChange(async (v) => {
 						this.plugin.settings.penWidth = v;
 						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Ink resolution")
+			.setDesc(
+				"How sharp strokes are. Lower means a smaller canvas for the device to push around, which can help on an older iPad."
+			)
+			.addDropdown((d) =>
+				d
+					.addOption("2", "Sharp")
+					.addOption("1.5", "Balanced")
+					.addOption("1", "Fastest")
+					.setValue(String(this.plugin.settings.maxInkDpr))
+					.onChange(async (v) => {
+						this.plugin.settings.maxInkDpr = Number(v) || 2;
+						await this.plugin.saveSettings();
+						this.plugin.refreshAllViews();
 					})
 			);
 

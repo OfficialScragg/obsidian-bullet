@@ -7,6 +7,8 @@ export interface InkLayerOptions {
 	fingerDraw: boolean;
 	color: string;
 	width: number;
+	/** Upper bound on the canvas backing-store scale. */
+	maxDpr: number;
 	onChange: () => void;
 }
 
@@ -48,6 +50,12 @@ export class InkLayer {
 	private pending: InkPoint[] = [];
 	private frameHandle = 0;
 
+	/** Timing of recent strokes, for the diagnostics command. */
+	private strokeStartedAt = 0;
+	private firstPaintMs: number[] = [];
+	private frameMs: number[] = [];
+	private observedTarget: HTMLElement | null = null;
+
 	/** The outer page scroller, used when nothing nearer can scroll. */
 	private pageScroller: HTMLElement | null = null;
 	/** The element the current finger drag is actually panning. */
@@ -80,6 +88,7 @@ export class InkLayer {
 	// -- lifecycle ---------------------------------------------------------
 
 	observe(target: HTMLElement, scroller: HTMLElement | null): void {
+		this.observedTarget = target;
 		this.pageScroller = scroller;
 		this.resizeObserver = new ResizeObserver(() => this.resize(target));
 		this.resizeObserver.observe(target);
@@ -117,6 +126,10 @@ export class InkLayer {
 		rectMs: number;
 		paintMs: number;
 		redrawMs: number;
+		firstPaintMs: number;
+		worstFirstPaintMs: number;
+		frameMs: number;
+		samples: number;
 	} {
 		const points = this.strokes.reduce((n, s) => n + s.points.length, 0);
 
@@ -142,7 +155,16 @@ export class InkLayer {
 		this.redraw();
 		const redrawMs = performance.now() - redrawStart;
 
+		const mean = (xs: number[]) =>
+			xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+
 		return {
+			firstPaintMs: mean(this.firstPaintMs),
+			worstFirstPaintMs: this.firstPaintMs.length
+				? Math.max(...this.firstPaintMs)
+				: 0,
+			frameMs: mean(this.frameMs),
+			samples: this.firstPaintMs.length,
 			strokes: this.strokes.length,
 			points,
 			cssWidth: Math.round(this.cssWidth),
@@ -153,6 +175,21 @@ export class InkLayer {
 			paintMs,
 			redrawMs,
 		};
+	}
+
+	/** True while a pen or mouse is actually laying down ink. */
+	isDrawing(): boolean {
+		return this.activePointerId !== null;
+	}
+
+	/** Cap the canvas backing store; lower is cheaper to push around. */
+	setMaxDpr(maxDpr: number): void {
+		if (this.opts.maxDpr === maxDpr) return;
+		this.opts = { ...this.opts, maxDpr };
+		if (this.observedTarget) {
+			this.cssWidth = -1;
+			this.resize(this.observedTarget);
+		}
 	}
 
 	setMode(mode: InkMode): void {
@@ -220,7 +257,7 @@ export class InkLayer {
 		this.cssHeight = height;
 		this.scale = width / INK_SPACE;
 
-		const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+		const dpr = Math.min(window.devicePixelRatio || 1, this.opts.maxDpr || MAX_DPR);
 		this.canvas.width = Math.floor(width * dpr);
 		this.canvas.height = Math.floor(height * dpr);
 		this.canvas.style.width = `${width}px`;
@@ -282,6 +319,7 @@ export class InkLayer {
 		this.capture(e.pointerId);
 		this.refreshOrigin();
 		this.pending.length = 0;
+		this.strokeStartedAt = performance.now();
 
 		const point = this.toInk(e);
 
@@ -326,6 +364,7 @@ export class InkLayer {
 		const points = this.pending;
 		if (points.length === 0) return;
 		this.pending = [];
+		const frameStart = performance.now();
 
 		if (this.mode === "erase") {
 			for (const point of points) this.eraseAt(point.x, point.y);
@@ -344,6 +383,15 @@ export class InkLayer {
 		if (stroke.points.length === startedAt) return;
 
 		paintStroke(this.ctx, stroke, this.scale, Math.max(1, startedAt - 1));
+
+		if (this.strokeStartedAt) {
+			// How long the pen was down before its ink first appeared.
+			this.firstPaintMs.push(performance.now() - this.strokeStartedAt);
+			if (this.firstPaintMs.length > 40) this.firstPaintMs.shift();
+			this.strokeStartedAt = 0;
+		}
+		this.frameMs.push(performance.now() - frameStart);
+		if (this.frameMs.length > 60) this.frameMs.shift();
 	};
 
 	private onPointerUp = (e: PointerEvent): void => {
@@ -373,6 +421,11 @@ export class InkLayer {
 		this.active = null;
 		if (finished.points.length > 0) {
 			this.strokes.push(finished);
+			// A tap, or a flick too small to clear the jitter filter, never
+			// reached renderFrame — paint it here or it simply never appears.
+			if (finished.points.length < 2) {
+				paintStroke(this.ctx, finished, this.scale);
+			}
 			this.opts.onChange();
 		}
 	};

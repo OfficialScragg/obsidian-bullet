@@ -48,3 +48,26 @@ export function bulletIcon(el: HTMLElement, name: string): HTMLElement {
 	el.appendChild(svg);
 	return el;
 }
+
+/**
+ * A filled dot, used for the stroke-width buttons. These were plain divs
+ * coloured with `background`, which a theme can override from inside a button
+ * — and did, leaving the buttons blank. An SVG inheriting `currentColor` is
+ * far harder to style away by accident.
+ */
+export function bulletDot(el: HTMLElement, radius: number): HTMLElement {
+	el.empty();
+	const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+	svg.setAttribute("viewBox", "0 0 24 24");
+	svg.setAttribute("aria-hidden", "true");
+	svg.addClass("bl-svg");
+	svg.addClass("bl-svg-fill");
+
+	const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+	circle.setAttribute("cx", "12");
+	circle.setAttribute("cy", "12");
+	circle.setAttribute("r", String(radius));
+	svg.appendChild(circle);
+	el.appendChild(svg);
+	return el;
+}

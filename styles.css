@@ -246,6 +246,7 @@
 	border-radius: 6px;
 	background: transparent;
 	box-shadow: none;
+	color: var(--bl-text);
 	cursor: pointer;
 }
 
@@ -255,8 +256,18 @@
 }
 
 .bullet-view .bl-width-dot {
-	border-radius: 50%;
-	background: var(--bl-text);
+	display: flex;
+}
+
+.bullet-view .bl-width-dot .bl-svg {
+	width: 1.5em;
+	height: 1.5em;
+}
+
+/* Filled marks (the stroke-width dots) rather than stroked outlines. */
+.bullet-view .bl-svg-fill {
+	fill: currentColor;
+	stroke: none;
 }
 
 /* ------------------------------------------------------------------ page */

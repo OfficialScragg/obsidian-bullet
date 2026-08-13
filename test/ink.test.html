@@ -47,7 +47,7 @@ const near = (name, got, want, tol) => {
 const stage = document.getElementById('stage');
 let changes = 0;
 const ink = new InkLayer(stage, {
-  fingerDraw: false, color: '#c9a227', width: 2.4,
+  fingerDraw: false, color: '#c9a227', width: 2.4, maxDpr: 2,
   onChange: () => { changes++; },
 });
 ink.observe(stage, null);
@@ -120,13 +120,28 @@ async function drawLine(y, n = 30, id = pid) {
   near('round trip keeps geometry', decoded[0].points[3].x, ink.getStrokes()[0].points[3].x, 0.11);
   check('ink space is width independent', Math.round(pts[pts.length-1].x) <= 1000, true);
 
+  // a tap with no movement must still leave a mark
+  const beforeTap = ink.getStrokes().length;
+  send('pointerdown', 300, 100, { id: 30 });
+  send('pointerup', 300, 100, { id: 30 });
+  check('tap leaves a dot', ink.getStrokes().length, beforeTap + 1);
+  check('the dot kept its point', ink.getStrokes()[ink.getStrokes().length-1].points.length, 1);
+
   // erase
   ink.setMode('erase');
-  const target = ink.getStrokes()[0].points[5];
+  const beforeErase = ink.getStrokes().length;
   send('pointerdown', 100 + 5 * 8, 200, { id: 20 });
   await frame();
   send('pointerup', 100 + 5 * 8, 200, { id: 20 });
-  check('eraser removes the stroke under it', ink.getStrokes().length, 1);
+  check('eraser removes the stroke under it', ink.getStrokes().length, beforeErase - 1);
+
+  // and leaves everything else alone
+  ink.setMode('draw');
+  const beforeMiss = ink.getStrokes().length;
+  ink.setMode('erase');
+  send('pointerdown', 560, 60, { id: 21 });
+  send('pointerup', 560, 60, { id: 21 });
+  check('eraser misses empty space', ink.getStrokes().length, beforeMiss);
 
   // --- cost of the old per-point layout read vs the cached origin ---------
   const N = 2000;

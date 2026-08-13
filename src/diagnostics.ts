@@ -20,6 +20,10 @@ export class InkDiagnosticsModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.createEl("h2", { text: "Ink performance" });
+		contentEl.createEl("p", {
+			text: "Write a line or two first, then run this — the latency figures come from the strokes you just drew.",
+			cls: "setting-item-description",
+		});
 
 		const ink = this.view.inkLayer;
 		if (!ink) {
@@ -45,6 +49,13 @@ export class InkDiagnosticsModal extends Modal {
 				"Canvas (device px)",
 				`${canvas.backingWidth} x ${canvas.backingHeight} — ${megapixels.toFixed(1)} MP at dpr ${dpr}`,
 			],
+			[
+				"Pen down to ink on screen",
+				canvas.samples
+					? `${canvas.firstPaintMs.toFixed(1)} ms average, ${canvas.worstFirstPaintMs.toFixed(1)} ms worst (${canvas.samples} strokes)`
+					: "draw a few strokes, then run this again",
+			],
+			["Work per drawing frame", `${canvas.frameMs.toFixed(2)} ms`],
 			["240 x getBoundingClientRect", `${canvas.rectMs.toFixed(1)} ms`],
 			["Paint one frame of ink", `${canvas.paintMs.toFixed(2)} ms`],
 			["Full redraw of every stroke", `${canvas.redrawMs.toFixed(1)} ms`],

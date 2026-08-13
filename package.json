@@ -1,6 +1,6 @@
 {
   "name": "obsidian-bullet",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A weekly bullet journal page for Obsidian, with an Apple Pencil ink layer.",
   "main": "main.js",
   "scripts": {
