@@ -143,6 +143,28 @@ async function drawLine(y, n = 30, id = pid) {
   send('pointerup', 560, 60, { id: 21 });
   check('eraser misses empty space', ink.getStrokes().length, beforeMiss);
 
+  // --- the incremental encoding cache must match a full encode -----------
+  const full = () => encodeInk(ink.getStrokes(), true);
+  check('cached encoding matches a full encode', ink.encodedInk(true), full());
+
+  ink.setMode('draw');
+  pid = 3;
+  await drawLine(150, 12, 3);
+  check('cache appends a new stroke correctly', ink.encodedInk(true), full());
+
+  ink.undo();
+  check('cache is rebuilt after undo', ink.encodedInk(true), full());
+
+  ink.setMode('erase');
+  send('pointerdown', 300, 100, { id: 40 });
+  send('pointerup', 300, 100, { id: 40 });
+  check('cache is rebuilt after erase', ink.encodedInk(true), full());
+
+  ink.setMode('draw');
+  pid = 4;
+  await drawLine(170, 10, 4);
+  check('cache still correct after a rebuild then append', ink.encodedInk(true), full());
+
   // --- cost of the old per-point layout read vs the cached origin ---------
   const N = 2000;
   let sink = 0;

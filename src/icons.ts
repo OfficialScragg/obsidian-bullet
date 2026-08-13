@@ -71,3 +71,36 @@ export function bulletDot(el: HTMLElement, radius: number): HTMLElement {
 	el.appendChild(svg);
 	return el;
 }
+
+/**
+ * An ink drop, used for the pen colours. The colour comes from `currentColor`
+ * so the button carries it, and the drop is a real icon rather than a bare
+ * circle — which squashed into an oval whenever the toolbar was tight.
+ */
+export function bulletSwatch(el: HTMLElement): HTMLElement {
+	el.empty();
+	const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+	svg.setAttribute("viewBox", "0 0 24 24");
+	svg.setAttribute("aria-hidden", "true");
+	svg.addClass("bl-svg");
+	svg.addClass("bl-svg-fill");
+
+	const drop = document.createElementNS("http://www.w3.org/2000/svg", "path");
+	drop.setAttribute(
+		"d",
+		"M12 3c4.1 4.6 6.2 8 6.2 10.4a6.2 6.2 0 0 1-12.4 0C5.8 11 7.9 7.6 12 3z"
+	);
+	svg.appendChild(drop);
+
+	// A soft highlight keeps the darker colours from reading as flat blobs.
+	const gleam = document.createElementNS("http://www.w3.org/2000/svg", "path");
+	gleam.setAttribute("d", "M9.6 13.6a2.4 2.4 0 0 1 2.4-2.4");
+	gleam.setAttribute("fill", "none");
+	gleam.setAttribute("stroke", "rgba(255,255,255,0.55)");
+	gleam.setAttribute("stroke-width", "1.4");
+	gleam.setAttribute("stroke-linecap", "round");
+	svg.appendChild(gleam);
+
+	el.appendChild(svg);
+	return el;
+}

@@ -107,6 +107,7 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	flex: 0 0 auto;
 	width: 2.3em;
 	height: 2.3em;
 	padding: 0;
@@ -219,26 +220,42 @@
 }
 
 .bullet-view .bl-swatch {
-	width: 1.7em;
-	height: 1.7em;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	/* Never let a tight toolbar squash these into ovals. */
+	flex: 0 0 auto;
+	width: 2em;
+	height: 2em;
 	padding: 0;
-	border: 1px solid var(--bl-line);
-	border-radius: 50%;
-	background: var(--bl-swatch);
+	border: 1px solid transparent;
+	border-radius: 6px;
+	background: transparent;
 	box-shadow: none;
+	color: var(--bl-swatch);
 	cursor: pointer;
-	transition: transform 120ms ease, box-shadow 120ms ease;
+	transition: background 120ms ease, border-color 120ms ease;
+}
+
+.bullet-view .bl-swatch .bl-svg {
+	width: 1.35em;
+	height: 1.35em;
+}
+
+.bullet-view .bl-swatch:hover {
+	background: var(--bl-raised);
 }
 
 .bullet-view .bl-swatch.is-active {
-	transform: scale(1.12);
-	box-shadow: 0 0 0 2px var(--bl-bg), 0 0 0 3px var(--bl-accent);
+	border-color: color-mix(in srgb, var(--bl-swatch) 55%, transparent);
+	background: color-mix(in srgb, var(--bl-swatch) 16%, transparent);
 }
 
 .bullet-view .bl-width {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	flex: 0 0 auto;
 	width: 2em;
 	height: 2em;
 	padding: 0;

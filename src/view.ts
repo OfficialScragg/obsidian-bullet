@@ -15,7 +15,7 @@ import {
 import { parseNote, readExtraFrontmatter, serializeNote } from "./serialize";
 import { InkLayer, InkMode } from "./inklayer";
 import { addDays, parseISODate } from "./date";
-import { bulletDot, bulletIcon } from "./icons";
+import { bulletDot, bulletIcon, bulletSwatch } from "./icons";
 import type BulletPlugin from "./main";
 
 const PROJECT_COLORS = [
@@ -38,6 +38,16 @@ export const SCALE_STEPS = [70, 80, 90, 100, 110, 125, 140, 160, 180, 200];
 
 /** However fast edits arrive, never leave one unwritten longer than this. */
 const SAVE_MAX_WAIT = 8000;
+
+/**
+ * Floor on any save timer. Without it, once the deadline above has passed the
+ * computed wait is zero, and a callback that reschedules itself then spins on
+ * zero-delay timers — which starves the main thread and the pen with it.
+ */
+const SAVE_MIN_DELAY = 300;
+
+/** Fixed retry used when the pen is still down; never recompute the deadline. */
+const SAVE_RETRY = 600;
 
 export class BulletView extends TextFileView {
 	plugin: BulletPlugin;
@@ -95,11 +105,19 @@ export class BulletView extends TextFileView {
 	// -- TextFileView contract ---------------------------------------------
 
 	getViewData(): string {
-		if (this.ink) this.model.ink = this.ink.getStrokes();
+		const compact = this.plugin.settings.compactInk;
+		let encodedInk: string | undefined;
+		if (this.ink) {
+			this.model.ink = this.ink.getStrokes();
+			// Re-encoding every stroke on every save made saving cost more the
+			// more you had written; the layer keeps an incremental encoding.
+			encodedInk = this.ink.encodedInk(compact);
+		}
 		this.lastSerialized = serializeNote(
 			this.model,
 			this.extraFrontmatter,
-			this.plugin.settings.compactInk
+			compact,
+			encodedInk
 		);
 		return this.lastSerialized;
 	}
@@ -165,20 +183,27 @@ export class BulletView extends TextFileView {
 		if (!this.savePendingSince) this.savePendingSince = now;
 
 		// Debouncing alone would let a long unbroken run of writing defer the
-		// save forever, so cap how long an edit may sit unwritten.
-		const remaining = Math.max(0, this.savePendingSince + SAVE_MAX_WAIT - now);
+		// save forever, so cap how long an edit may sit unwritten — but keep a
+		// floor, or the timer fires with no delay once that cap has passed.
+		const untilDeadline = this.savePendingSince + SAVE_MAX_WAIT - now;
+		const wait = Math.max(SAVE_MIN_DELAY, Math.min(delay, untilDeadline));
+
 		window.clearTimeout(this.saveTimer);
-		this.saveTimer = window.setTimeout(() => {
-			this.saveTimer = 0;
-			// Never serialise the page mid-stroke; wait for the pen to lift.
-			if (this.ink?.isDrawing()) {
-				this.scheduleSave(400);
-				return;
-			}
-			this.savePendingSince = 0;
-			this.requestSave();
-		}, Math.min(delay, remaining));
+		this.saveTimer = window.setTimeout(this.runSave, wait);
 	}
+
+	private runSave = (): void => {
+		this.saveTimer = 0;
+		if (this.ink?.isDrawing()) {
+			// Never serialise the page mid-stroke. This retry is a fixed delay
+			// on purpose: recomputing the deadline here is what produced a
+			// zero-delay timer loop for as long as the pen was down.
+			this.saveTimer = window.setTimeout(this.runSave, SAVE_RETRY);
+			return;
+		}
+		this.savePendingSince = 0;
+		this.requestSave();
+	};
 
 	private touch(): void {
 		this.scheduleSave(500);
@@ -331,8 +356,9 @@ export class BulletView extends TextFileView {
 			for (const color of this.plugin.settings.penColors) {
 				const dot = swatches.createEl("button", { cls: "bl-swatch" });
 				dot.style.setProperty("--bl-swatch", color);
+				bulletSwatch(dot);
 				dot.toggleClass("is-active", color === this.penColor && this.mode === "draw");
-				dot.setAttr("aria-label", color);
+				dot.setAttr("aria-label", `Pen colour ${color}`);
 				dot.onclick = () => {
 					this.penColor = color;
 					this.setMode("draw");

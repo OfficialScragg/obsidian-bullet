@@ -1,4 +1,4 @@
-import { INK_SPACE, paintStroke, strokeHitTest } from "./ink";
+import { INK_SPACE, encodeInk, paintStroke, strokeHitTest } from "./ink";
 import { InkPoint, Stroke } from "./types";
 
 export type InkMode = "off" | "draw" | "erase";
@@ -56,6 +56,11 @@ export class InkLayer {
 	private frameMs: number[] = [];
 	private observedTarget: HTMLElement | null = null;
 
+	/** Cached encoding of the strokes, grown as strokes are added. */
+	private encoded = "";
+	private encodedCount = 0;
+	private encodingStale = true;
+
 	/** The outer page scroller, used when nothing nearer can scroll. */
 	private pageScroller: HTMLElement | null = null;
 	/** The element the current finger drag is actually panning. */
@@ -107,12 +112,37 @@ export class InkLayer {
 
 	setStrokes(strokes: Stroke[]): void {
 		this.strokes = strokes;
+		this.encodingStale = true;
 		this.redoStack = [];
 		this.redraw();
 	}
 
 	getStrokes(): Stroke[] {
 		return this.strokes;
+	}
+
+	/**
+	 * The strokes in stored form. Drawing only ever appends, so the common case
+	 * encodes the new strokes and concatenates rather than walking every point
+	 * on the page again — which is what made saving slower the more you wrote.
+	 * Anything that reorders or removes strokes marks the cache stale.
+	 */
+	encodedInk(compact: boolean): string {
+		// The readable form is JSON; it has no meaningful append.
+		if (!compact) return encodeInk(this.strokes, false);
+
+		if (this.encodingStale) {
+			this.encoded = encodeInk(this.strokes, true);
+			this.encodedCount = this.strokes.length;
+			this.encodingStale = false;
+			return this.encoded;
+		}
+		if (this.strokes.length > this.encodedCount) {
+			const added = encodeInk(this.strokes.slice(this.encodedCount), true);
+			this.encoded = this.encoded ? `${this.encoded}\n${added}` : added;
+			this.encodedCount = this.strokes.length;
+		}
+		return this.encoded;
 	}
 
 	/** Numbers for the diagnostics command. */
@@ -216,6 +246,7 @@ export class InkLayer {
 	undo(): void {
 		const popped = this.strokes.pop();
 		if (!popped) return;
+		this.encodingStale = true;
 		this.redoStack.push(popped);
 		this.redraw();
 		this.opts.onChange();
@@ -231,6 +262,7 @@ export class InkLayer {
 
 	clear(): void {
 		if (this.strokes.length === 0) return;
+		this.encodingStale = true;
 		this.redoStack = this.strokes.slice().reverse();
 		this.strokes = [];
 		this.redraw();
@@ -435,7 +467,10 @@ export class InkLayer {
 		this.strokes = this.strokes.filter(
 			(s) => !strokeHitTest(s, x, y, ERASER_RADIUS)
 		);
-		if (this.strokes.length !== before) this.redraw();
+		if (this.strokes.length !== before) {
+			this.encodingStale = true;
+			this.redraw();
+		}
 	}
 
 	// -- finger panning ----------------------------------------------------

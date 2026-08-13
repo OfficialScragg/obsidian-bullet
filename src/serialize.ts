@@ -265,7 +265,9 @@ export function parseNote(content: string): WeekData {
 export function serializeNote(
 	data: WeekData,
 	extraFrontmatter: string[],
-	compactInk: boolean
+	compactInk: boolean,
+	/** Pre-encoded ink, when the caller already has it cached. */
+	encodedInk?: string
 ): string {
 	const out: string[] = [];
 
@@ -353,7 +355,7 @@ export function serializeNote(
 		out.push("");
 	}
 
-	const ink = encodeInk(data.ink, compactInk);
+	const ink = encodedInk ?? encodeInk(data.ink, compactInk);
 	out.push(`## ${SECTION.ink}`);
 	out.push("");
 	out.push("```" + INK_FENCE);
