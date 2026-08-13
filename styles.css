@@ -353,9 +353,9 @@
 	min-height: 0;
 	gap: var(--bl-gap);
 	grid-template-columns: 1fr 1fr;
-	/* fit-content caps the foot of the page: it hugs its content, but never
-	   takes more than 46% and starves the two tall panels. */
-	grid-template-rows: minmax(0, 1fr) minmax(0, fit-content(46%));
+	/* Two thirds to the top of the page, one third to the foot. minmax keeps
+	   the zero floor so a track can still shrink rather than overflow. */
+	grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
 	grid-template-areas:
 		"tasks meetings"
 		"trackers events";
@@ -527,30 +527,89 @@
 	text-decoration-thickness: 1px;
 }
 
-/* priority flag */
-.bullet-view .bl-star {
+/* drag handle */
+.bullet-view .bl-grip {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	flex: 0 0 auto;
-	width: 1em;
-	height: 1.2em;
+	width: 1.4em;
+	height: 1.6em;
 	padding: 0;
 	border: none;
 	border-radius: 4px;
 	background: transparent;
 	box-shadow: none;
-	color: transparent;
-	font-size: 0.9em;
-	line-height: 1;
+	color: var(--bl-faint);
+	opacity: 0;
+	cursor: grab;
+	touch-action: none;
+	transition: opacity 120ms ease, color 120ms ease;
+}
+
+.bullet-view .bl-grip .bl-svg {
+	width: 0.85em;
+	height: 0.85em;
+}
+
+.bullet-view .bl-row:hover .bl-grip,
+.bullet-view .bl-grip:focus-visible {
+	opacity: 0.65;
+}
+
+.bullet-view .bl-grip:active {
+	cursor: grabbing;
+	opacity: 1;
+	color: var(--bl-text);
+}
+
+.bullet-view .bl-row.is-dragging {
+	background: var(--bl-raised);
+	box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
+	opacity: 0.96;
+}
+
+.bullet-view .bl-tasks.is-reordering .bl-row {
+	transition: none;
+}
+
+/* priority flag — always visible, and a target you can actually hit */
+.bullet-view .bl-star {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 1.6em;
+	height: 1.6em;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--bl-faint);
+	opacity: 0.5;
 	cursor: pointer;
-	transition: color 120ms ease;
+	transition: color 120ms ease, opacity 120ms ease;
+}
+
+.bullet-view .bl-star .bl-svg {
+	width: 0.95em;
+	height: 0.95em;
+	fill: none;
 }
 
 .bullet-view .bl-row:hover .bl-star {
-	color: var(--bl-faint);
+	opacity: 0.8;
 }
 
 .bullet-view .bl-star.is-on,
 .bullet-view .bl-row:hover .bl-star.is-on {
 	color: var(--bl-accent);
+	opacity: 1;
+}
+
+.bullet-view .bl-star.is-on .bl-svg {
+	fill: currentColor;
 }
 
 /* delete */
@@ -1008,8 +1067,9 @@
 		padding: 0 0.55em;
 	}
 
-	.bullet-view .bl-star {
-		display: none;
+	.bullet-view .bl-star,
+	.bullet-view .bl-grip {
+		width: 1.3em;
 	}
 }
 
@@ -1024,8 +1084,15 @@
 		opacity: 0.5;
 	}
 
+	.bullet-view .bl-grip {
+		opacity: 0.5;
+		width: 1.9em;
+		height: 2em;
+	}
+
 	.bullet-view .bl-star {
-		color: var(--bl-faint);
+		width: 2em;
+		height: 2em;
 	}
 }
 

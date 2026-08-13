@@ -20,12 +20,12 @@ import type BulletPlugin from "./main";
 
 const PROJECT_COLORS = [
 	"#c9a227",
-	"#6fa8dc",
-	"#8fbf7f",
-	"#d98d6a",
-	"#a58fd0",
-	"#7fc7c0",
-	"#d07f9e",
+	"#7d9fc4",
+	"#cf8a6a",
+	"#a08cc9",
+	"#c98aa6",
+	"#9a9ab0",
+	"#d4b483",
 ];
 
 const PEN_WIDTH_STEPS = [1.4, 2.4, 4, 6.5];
@@ -532,13 +532,25 @@ export class BulletView extends TextFileView {
 		this.model.tasks.forEach((task, index) => {
 			const row = host.createDiv({ cls: "bl-row bl-task" });
 
+			const grip = row.createEl("button", { cls: "bl-grip" });
+			bulletIcon(grip, "grip");
+			grip.setAttr("aria-label", "Drag to reorder");
+			this.enableRowDrag(grip, row, host, (from, to) => {
+				const [moved] = this.model.tasks.splice(from, 1);
+				this.model.tasks.splice(to, 0, moved);
+				this.renderTasks();
+				this.touch();
+			});
+
 			const star = row.createEl("button", { cls: "bl-star" });
-			star.setText("✳");
+			bulletIcon(star, "star");
 			star.toggleClass("is-on", task.star);
 			star.setAttr("aria-label", "Flag as priority");
+			star.setAttr("aria-pressed", String(task.star));
 			star.onclick = () => {
 				task.star = !task.star;
 				star.toggleClass("is-on", task.star);
+				star.setAttr("aria-pressed", String(task.star));
 				this.touch();
 			};
 
@@ -952,6 +964,71 @@ export class BulletView extends TextFileView {
 		};
 
 		sync();
+	}
+
+	/**
+	 * Drag a row by its grip to reorder it.
+	 *
+	 * Pointer events rather than HTML drag-and-drop, which does not work on a
+	 * touch screen. The row is moved in the DOM as the pointer crosses its
+	 * neighbours' midpoints, so what you see during the drag is the order you
+	 * will get, and the model is only rewritten once on release.
+	 */
+	private enableRowDrag(
+		handle: HTMLElement,
+		row: HTMLElement,
+		host: HTMLElement,
+		onDrop: (from: number, to: number) => void
+	): void {
+		handle.addEventListener("pointerdown", (e: PointerEvent) => {
+			e.preventDefault();
+			const rowsNow = () =>
+				Array.from(host.querySelectorAll<HTMLElement>(".bl-row"));
+			const from = rowsNow().indexOf(row);
+			if (from < 0) return;
+
+			handle.setPointerCapture(e.pointerId);
+			row.addClass("is-dragging");
+			host.addClass("is-reordering");
+
+			const onMove = (ev: PointerEvent) => {
+				for (const other of rowsNow()) {
+					if (other === row) continue;
+					const rect = other.getBoundingClientRect();
+					const middle = rect.top + rect.height / 2;
+					const rowIsAfter =
+						other.compareDocumentPosition(row) &
+						Node.DOCUMENT_POSITION_FOLLOWING;
+
+					if (ev.clientY < middle && rowIsAfter) {
+						host.insertBefore(row, other);
+						break;
+					}
+					if (ev.clientY > middle && !rowIsAfter) {
+						host.insertBefore(row, other.nextSibling);
+						break;
+					}
+				}
+			};
+
+			const onUp = (ev: PointerEvent) => {
+				window.removeEventListener("pointermove", onMove);
+				window.removeEventListener("pointerup", onUp);
+				window.removeEventListener("pointercancel", onUp);
+				if (handle.hasPointerCapture(ev.pointerId)) {
+					handle.releasePointerCapture(ev.pointerId);
+				}
+				row.removeClass("is-dragging");
+				host.removeClass("is-reordering");
+
+				const to = rowsNow().indexOf(row);
+				if (to >= 0 && to !== from) onDrop(from, to);
+			};
+
+			window.addEventListener("pointermove", onMove);
+			window.addEventListener("pointerup", onUp);
+			window.addEventListener("pointercancel", onUp);
+		});
 	}
 
 	// -- small builders ----------------------------------------------------

@@ -25,6 +25,8 @@ const PATHS: Record<string, string> = {
 	check: '<path d="M20 6 9 17l-5-5"/>',
 	file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/>',
 	test: '<path d="M9 3h6"/><path d="M10 3v6.5L5.2 18a2 2 0 0 0 1.7 3h10.2a2 2 0 0 0 1.7-3L14 9.5V3"/><path d="M6.5 15h11"/>',
+	star: 'M12 2.6l2.95 5.98 6.6.96-4.77 4.65 1.13 6.57L12 17.66l-5.91 3.1 1.13-6.57L2.45 9.54l6.6-.96z',
+	grip: '<path d="M4 9h16M4 15h16"/>',
 	gauge: '<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="m14.1 9.9 3.5-3.5"/><path d="M3.5 18a9 9 0 1 1 17 0"/>',
 };
 

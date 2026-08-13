@@ -16,7 +16,7 @@ On a phone in portrait the two columns get genuinely narrow — it still works, 
 landscape is much more comfortable.
 
 - **One page per week**, created automatically, named `2026-W30.md` by default.
-- **Tasks** with tick boxes and a priority flag.
+- **Tasks** with tick boxes, a priority star, and drag-to-reorder.
 - **Meetings** grouped by day, each with a time.
 - **Events** — a dated checklist for the things that aren't meetings.
 - **Habit trackers** — a 7-column grid you fill in however you like: a tick, a
@@ -66,6 +66,7 @@ the current week is created if it doesn't exist yet.
 
 ### Keyboard
 
+- **Drag a task by the handle** on its left to reorder it.
 - **Enter** in any row adds a new row below it.
 - **Backspace** in an empty row deletes it.
 - **Up / Down** move between rows.
