@@ -35,6 +35,9 @@
 	--bl-radius: 9px;
 	--bl-gap: 0.8em;
 	--bl-row-h: 1.95em;
+	/* one template for both tracker grids: a roomy label column, then seven
+	   equal day columns that the cells make square */
+	--bl-track-cols: minmax(6.5em, 1.7fr) repeat(7, minmax(0, 1fr));
 
 	font-size: calc(13px * var(--bl-scale) * var(--bl-auto));
 	display: flex;
@@ -58,6 +61,21 @@
 	--bl-accent: #c9a227;
 	--bl-dot: #1c2029;
 	--bl-done: #565d6d;
+}
+
+/* Small controls are square: equal sides, and aspect-ratio to hold it even
+   when a flex row would rather stretch them. */
+.bullet-view .bl-check,
+.bullet-view .bl-star,
+.bullet-view .bl-grip,
+.bullet-view .bl-del,
+.bullet-view .bl-icon-btn,
+.bullet-view .bl-swatch,
+.bullet-view .bl-width,
+.bullet-view .bl-time-add,
+.bullet-view .bl-day-add {
+	aspect-ratio: 1;
+	flex: 0 0 auto;
 }
 
 /* Every icon in the page is an inline SVG Bullet draws itself. */
@@ -533,7 +551,7 @@
 	align-items: center;
 	justify-content: center;
 	flex: 0 0 auto;
-	width: 1.4em;
+	width: 1.6em;
 	height: 1.6em;
 	padding: 0;
 	border: none;
@@ -587,7 +605,7 @@
 	background: transparent;
 	box-shadow: none;
 	color: var(--bl-faint);
-	opacity: 0.5;
+	opacity: 1;
 	cursor: pointer;
 	transition: color 120ms ease, opacity 120ms ease;
 }
@@ -599,7 +617,7 @@
 }
 
 .bullet-view .bl-row:hover .bl-star {
-	opacity: 0.8;
+	color: var(--bl-muted);
 }
 
 .bullet-view .bl-star.is-on,
@@ -752,58 +770,66 @@
 
 /* -------------------------------------------------------------- trackers */
 
-.bullet-view .bl-habit-table {
+/* Habits and the time grid share one column template so their columns line
+   up, and both use square day cells. */
+.bullet-view .bl-track-grid {
 	display: grid;
-	grid-template-columns: minmax(5em, 1.25fr) repeat(7, minmax(0, 1fr));
-	gap: 1px;
+	grid-template-columns: var(--bl-track-cols);
+	gap: 2px;
 	width: 100%;
 	margin-top: 0.1em;
-	border: 1px solid var(--bl-line);
-	border-radius: 7px;
-	background: var(--bl-line);
-	overflow: hidden;
 }
 
-.bullet-view .bl-habit-table > * {
-	background: var(--bl-panel);
-}
-
-.bullet-view .bl-habit-corner,
-.bullet-view .bl-habit-dayhead {
+.bullet-view .bl-track-corner,
+.bullet-view .bl-track-dayhead {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	height: 1.5em;
-	background: var(--bl-raised);
 	color: var(--bl-muted);
 	font-size: 0.78em;
 	font-weight: 600;
 	letter-spacing: 0.06em;
 }
 
-.bullet-view .bl-habit-dayhead.is-weekend {
+.bullet-view .bl-track-dayhead.is-weekend {
 	color: var(--bl-faint);
 }
 
-.bullet-view .bl-habit-name {
-	height: 1.8em;
-	padding: 0 0.55em;
+/* the label column: habit names and project codes */
+.bullet-view .bl-habit-name,
+.bullet-view .bl-time-code {
+	height: 100%;
+	min-height: 1.8em;
+	padding: 0 0.5em;
+	border-radius: 3px;
+	background: var(--bl-panel);
 	font-size: 0.88em;
 	color: var(--bl-muted);
 }
 
+.bullet-view .bl-time-code {
+	font-weight: 600;
+	letter-spacing: 0.06em;
+}
+
+/* square day cells */
 .bullet-view .bl-habit-cell {
-	height: 1.8em;
+	width: 100%;
+	aspect-ratio: 1;
+	height: auto;
 	padding: 0;
+	border-radius: 3px;
+	background: var(--bl-panel);
 	text-align: center;
 	font-size: 0.94em;
 }
 
 .bullet-view .bl-habit-cell.is-weekend {
-	background: color-mix(in srgb, var(--bl-panel) 70%, var(--bl-bg));
+	background: color-mix(in srgb, var(--bl-panel) 55%, transparent);
 }
 
-/* time chart */
+/* time grid: a block per project per day, tapped to mark it done */
 .bullet-view .bl-time {
 	width: 100%;
 	margin-top: 0.7em;
@@ -819,117 +845,30 @@
 	text-transform: uppercase;
 }
 
-.bullet-view .bl-time-chart {
-	display: grid;
-	grid-template-columns: repeat(7, minmax(0, 1fr));
-	gap: 0.3em;
-	align-items: end;
-}
-
-.bullet-view .bl-time-col {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 0.22em;
-	min-width: 0;
-}
-
-.bullet-view .bl-time-stack {
-	display: flex;
-	flex-direction: column-reverse;
-	justify-content: flex-start;
-	gap: 0.15em;
-	width: 100%;
-	min-height: calc(var(--bl-max, 4) * 0.92em);
-	padding: 0.15em;
-	border-radius: 5px;
-	background: color-mix(in srgb, var(--bl-raised) 55%, transparent);
-}
-
-.bullet-view .bl-time-col.is-weekend .bl-time-stack {
-	background: color-mix(in srgb, var(--bl-raised) 28%, transparent);
-}
-
 .bullet-view .bl-time-block {
-	height: 0.77em;
+	width: 100%;
+	aspect-ratio: 1;
+	height: auto;
+	padding: 0;
+	border: 1px solid transparent;
 	border-radius: 3px;
-	background: var(--bl-block);
-	opacity: 0.86;
+	background: color-mix(in srgb, var(--bl-raised) 70%, transparent);
+	box-shadow: none;
 	cursor: pointer;
-	transition: opacity 120ms ease;
+	transition: background 120ms ease, border-color 120ms ease;
+}
+
+.bullet-view .bl-time-block.is-weekend {
+	background: color-mix(in srgb, var(--bl-raised) 35%, transparent);
 }
 
 .bullet-view .bl-time-block:hover {
-	opacity: 1;
-}
-
-.bullet-view .bl-time-add {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 1.4em;
-	height: 1.4em;
-	padding: 0;
-	border: 1px dashed var(--bl-line);
-	border-radius: 5px;
-	background: transparent;
-	box-shadow: none;
-	color: var(--bl-faint);
-	cursor: pointer;
-}
-
-.bullet-view .bl-time-add:hover {
-	color: var(--bl-text);
 	border-color: var(--bl-muted);
 }
 
-.bullet-view .bl-time-add .bl-svg {
-	width: 0.85em;
-	height: 0.85em;
-}
-
-.bullet-view .bl-time-day {
-	color: var(--bl-faint);
-	font-size: 0.78em;
-	font-weight: 600;
-	letter-spacing: 0.06em;
-}
-
-.bullet-view .bl-legend {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 0.3em 0.8em;
-	margin-top: 0.6em;
-}
-
-.bullet-view .bl-legend-item {
-	display: flex;
-	align-items: center;
-	gap: 0.4em;
-}
-
-.bullet-view .bl-legend-dot {
-	width: 0.7em;
-	height: 0.7em;
-	flex: 0 0 auto;
-	border-radius: 2px;
+.bullet-view .bl-time-block.is-on {
 	background: var(--bl-block);
-}
-
-.bullet-view .bl-legend-code {
-	width: 3em;
-	height: 1.5em;
-	font-size: 0.84em;
-	font-weight: 600;
-	letter-spacing: 0.06em;
-	color: var(--bl-muted);
-}
-
-.bullet-view .bl-legend-total {
-	color: var(--bl-faint);
-	font-size: 0.8em;
-	font-variant-numeric: tabular-nums;
+	border-color: var(--bl-block);
 }
 
 /* ---------------------------------------------------------------- events */
@@ -1069,7 +1008,8 @@
 
 	.bullet-view .bl-star,
 	.bullet-view .bl-grip {
-		width: 1.3em;
+		width: 1.35em;
+		height: 1.35em;
 	}
 }
 
@@ -1086,7 +1026,7 @@
 
 	.bullet-view .bl-grip {
 		opacity: 0.5;
-		width: 1.9em;
+		width: 2em;
 		height: 2em;
 	}
 

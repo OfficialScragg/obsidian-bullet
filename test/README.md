@@ -1,4 +1,4 @@
-# Ink tests
+# Tests
 
 `ink.test.html` drives the real `InkLayer` with synthetic pointer events and
 checks that strokes are recorded, separated when the pen lifts, erased,
@@ -19,4 +19,17 @@ Results appear at the top of the page. Headless, on macOS:
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   --headless --disable-gpu --allow-file-access-from-files --dump-dom \
   --virtual-time-budget=8000 "file://$PWD/test/ink.test.html"
+```
+
+## Icons
+
+`icons.test.html` renders every icon through the real `bulletIcon` and checks
+each one produces an actual shape. It exists because the priority star was
+added as bare path data rather than markup, which sets text inside the SVG and
+draws nothing — invisible in the plugin while the preview harness, which had
+its own copy of the star, looked fine.
+
+```bash
+npx esbuild src/icons.ts --bundle --format=esm --outfile=test/icons.mjs
+open test/icons.test.html
 ```

@@ -21,7 +21,8 @@ landscape is much more comfortable.
 - **Events** — a dated checklist for the things that aren't meetings.
 - **Habit trackers** — a 7-column grid you fill in however you like: a tick, a
   number, a word.
-- **Time blocks** — a stacked chart of sessions per day, colour-coded by project.
+- **Time blocks** — a grid of a block per project per day, tapped to mark done,
+  with the day across the top and the project code down the side.
 - **Handwriting** — draw anywhere on the page with an Apple Pencil. Pressure
   varies the stroke width. A finger scrolls instead of drawing, so your palm
   never leaves a mark.

@@ -1,4 +1,4 @@
-import { Menu, Notice, TextFileView, WorkspaceLeaf } from "obsidian";
+import { Notice, TextFileView, WorkspaceLeaf } from "obsidian";
 import {
 	DAY_INITIALS,
 	DAY_NAMES,
@@ -761,12 +761,12 @@ export class BulletView extends TextFileView {
 		host.empty();
 		host.addClass("bl-trackers");
 
-		const table = host.createDiv({ cls: "bl-habit-table" });
+		const table = host.createDiv({ cls: "bl-track-grid bl-habit-table" });
 
-		table.createDiv({ cls: "bl-habit-corner" });
+		table.createDiv({ cls: "bl-track-corner" });
 		for (const day of this.dayOrder) {
 			const cell = table.createDiv({
-				cls: "bl-habit-dayhead",
+				cls: "bl-track-dayhead",
 				text: DAY_INITIALS[day],
 			});
 			if (day >= 5) cell.addClass("is-weekend");
@@ -822,6 +822,15 @@ export class BulletView extends TextFileView {
 		this.renderTimeChart(host);
 	}
 
+	/**
+	 * A block per project per day, like a contributions grid: day initials
+	 * across the top, the project code down the left, and a block you tap to
+	 * mark that project done for that day.
+	 *
+	 * The stored value stays a number so the note format does not change, and
+	 * anything above zero reads as done — older pages that counted sessions
+	 * still open correctly.
+	 */
 	private renderTimeChart(host: HTMLElement): void {
 		const wrap = host.createDiv({ cls: "bl-time" });
 
@@ -834,96 +843,70 @@ export class BulletView extends TextFileView {
 			this.touch();
 		};
 
-		const chart = wrap.createDiv({ cls: "bl-time-chart" });
-		const maxBlocks = Math.max(
-			4,
-			...Array.from({ length: 7 }, (_, day) =>
-				this.model.time.reduce((sum, row) => sum + (row.blocks[day] ?? 0), 0)
-			)
-		);
+		const grid = wrap.createDiv({ cls: "bl-track-grid bl-time-grid" });
 
+		grid.createDiv({ cls: "bl-track-corner" });
 		for (const day of this.dayOrder) {
-			const col = chart.createDiv({ cls: "bl-time-col" });
-			if (day >= 5) col.addClass("is-weekend");
-
-			const stack = col.createDiv({ cls: "bl-time-stack" });
-			stack.style.setProperty("--bl-max", String(maxBlocks));
-
-			this.model.time.forEach((row, projectIndex) => {
-				for (let n = 0; n < (row.blocks[day] ?? 0); n++) {
-					const block = stack.createDiv({ cls: "bl-time-block" });
-					block.style.setProperty("--bl-block", colorFor(projectIndex));
-					block.setAttr("aria-label", `${row.project} — tap to remove`);
-					block.onclick = () => {
-						row.blocks[day] = Math.max(0, (row.blocks[day] ?? 0) - 1);
-						this.renderTrackers();
-						this.touch();
-					};
-				}
+			const head = grid.createDiv({
+				cls: "bl-track-dayhead",
+				text: DAY_INITIALS[day],
 			});
-
-			const add = col.createEl("button", { cls: "bl-time-add" });
-			bulletIcon(add, "plus");
-			add.setAttr("aria-label", `Log a block on ${DAY_NAMES[day]}`);
-			add.onclick = (e) => this.pickProject(e, day);
-
-			col.createDiv({ cls: "bl-time-day", text: DAY_INITIALS[day] });
+			if (day >= 5) head.addClass("is-weekend");
 		}
 
-		const legend = wrap.createDiv({ cls: "bl-legend" });
 		this.model.time.forEach((row, index) => {
-			const item = legend.createDiv({ cls: "bl-legend-item" });
-			const dot = item.createDiv({ cls: "bl-legend-dot" });
-			dot.style.setProperty("--bl-block", colorFor(index));
-
-			const code = item.createEl("input", {
-				cls: "bl-input bl-legend-code",
+			const code = grid.createEl("input", {
+				cls: "bl-input bl-time-code",
 				attr: { type: "text", value: row.project, placeholder: "Code" },
 			});
 			code.oninput = () => {
 				row.project = code.value;
 				this.touch();
 			};
+			code.onkeydown = (e) => {
+				if (
+					e.key === "Backspace" &&
+					row.project.length === 0 &&
+					row.blocks.every((b) => !b)
+				) {
+					e.preventDefault();
+					this.model.time.splice(index, 1);
+					this.renderTrackers();
+					this.touch();
+				}
+			};
 
-			const total = row.blocks.reduce((a, b) => a + (b ?? 0), 0);
-			item.createSpan({ cls: "bl-legend-total", text: String(total) });
+			for (const day of this.dayOrder) {
+				const done = (row.blocks[day] ?? 0) > 0;
+				const block = grid.createEl("button", { cls: "bl-time-block" });
+				block.style.setProperty("--bl-block", colorFor(index));
+				block.toggleClass("is-on", done);
+				if (day >= 5) block.addClass("is-weekend");
+				block.setAttr("role", "checkbox");
+				block.setAttr("aria-checked", String(done));
+				block.setAttr(
+					"aria-label",
+					`${row.project || "Project"} on ${DAY_NAMES[day]}`
+				);
+				block.onclick = () => {
+					const next = (row.blocks[day] ?? 0) > 0 ? 0 : 1;
+					row.blocks[day] = next;
+					block.toggleClass("is-on", next > 0);
+					block.setAttr("aria-checked", String(next > 0));
+					this.touch();
+				};
+			}
 		});
 
-		const addProject = legend.createEl("button", { cls: "bl-add-inline" });
+		const addProject = wrap.createEl("button", { cls: "bl-add-inline" });
 		bulletIcon(addProject.createSpan(), "plus");
 		addProject.createSpan({ text: "Project" });
 		addProject.onclick = () => {
 			this.model.time.push({ project: "", blocks: [0, 0, 0, 0, 0, 0, 0] });
 			this.renderTrackers();
-			this.focusLast(this.hosts.habits, ".bl-legend-code");
+			this.focusLast(this.hosts.habits, ".bl-time-code");
 			this.touch();
 		};
-	}
-
-	private pickProject(e: MouseEvent, day: number): void {
-		const rows = this.model.time.filter((r) => r.project.trim().length > 0);
-		if (rows.length === 0) {
-			new Notice("Add a project code first");
-			return;
-		}
-		if (rows.length === 1) {
-			this.addBlock(rows[0], day);
-			return;
-		}
-		const menu = new Menu();
-		for (const row of this.model.time) {
-			if (!row.project.trim()) continue;
-			menu.addItem((item) =>
-				item.setTitle(row.project).onClick(() => this.addBlock(row, day))
-			);
-		}
-		menu.showAtMouseEvent(e);
-	}
-
-	private addBlock(row: TimeRow, day: number): void {
-		row.blocks[day] = (row.blocks[day] ?? 0) + 1;
-		this.renderTrackers();
-		this.touch();
 	}
 
 	private renderNotes(parent: HTMLElement): void {

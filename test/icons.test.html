@@ -1,0 +1,43 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#0b0c0f;color:#ddd;font:12px monospace}
+#out{white-space:pre;padding:8px}
+.bl-svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2}
+#gallery{display:flex;flex-wrap:wrap;gap:14px;padding:10px;color:#c9a227}
+figure{margin:0;text-align:center;font-size:10px;color:#888}</style></head>
+<body><pre id="out">running…</pre><div id="gallery"></div>
+<script type="module">
+Object.assign(HTMLElement.prototype,{
+  createEl(t,o={}){const e=document.createElement(t);if(o.cls)e.className=o.cls;if(o.text)e.textContent=o.text;this.appendChild(e);return e;},
+  toggleClass(c,o){this.classList.toggle(c,!!o);},addClass(c){this.classList.add(c);},empty(){this.replaceChildren();},
+});
+Object.assign(SVGElement.prototype,{addClass(c){this.classList.add(c);}});
+import { bulletIcon, bulletDot, bulletSwatch, iconNames } from './icons.mjs';
+
+const log=[];let bad=0;
+const gallery=document.getElementById('gallery');
+for (const name of iconNames()) {
+  const fig=document.createElement('figure');
+  const host=document.createElement('div');
+  fig.appendChild(host);
+  const cap=document.createElement('figcaption');cap.textContent=name;fig.appendChild(cap);
+  gallery.appendChild(fig);
+  bulletIcon(host,name);
+  const svg=host.querySelector('svg');
+  const shapes=svg?svg.querySelectorAll('path,circle,rect,line,polyline,polygon').length:0;
+  // an icon that renders no shape draws nothing at all
+  const ok = !!svg && shapes>0 && (svg.textContent||'').trim()==='';
+  if(!ok)bad++;
+  log.push(`${ok?'PASS':'FAIL'}  ${name}  shapes=${shapes} strayText=${JSON.stringify((svg&&svg.textContent||'').slice(0,30))}`);
+}
+// the two builders that do not come from the name table
+for (const [label,fn] of [['dot',el=>bulletDot(el,4)],['swatch',el=>bulletSwatch(el)]]) {
+  const host=document.createElement('div');fn(host);
+  const svg=host.querySelector('svg');
+  const shapes=svg?svg.querySelectorAll('path,circle').length:0;
+  const ok=!!svg&&shapes>0;
+  if(!ok)bad++;
+  log.push(`${ok?'PASS':'FAIL'}  ${label}  shapes=${shapes}`);
+}
+log.push('');log.push(bad===0?'ALL ICONS RENDER':`${bad} ICON(S) DRAW NOTHING`);
+document.getElementById('out').textContent=log.join('\n');
+</script></body></html>
