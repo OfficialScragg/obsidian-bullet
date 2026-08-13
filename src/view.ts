@@ -658,8 +658,10 @@ export class BulletView extends TextFileView {
 				const row = list.createDiv({ cls: "bl-row bl-meeting" });
 				row.dataset.id = item.id;
 
-				const timeWrap = row.createDiv({ cls: "bl-time-wrap" });
-				const time = timeWrap.createEl("select", { cls: "bl-time-select" });
+				const timeWrap = row.createDiv({ cls: "bl-select-wrap bl-time-wrap" });
+				const time = timeWrap.createEl("select", {
+					cls: "bl-select bl-time-select",
+				});
 				this.fillTimeOptions(time, item.time);
 				time.value = item.time;
 				time.setAttr("aria-label", "Time");
@@ -723,6 +725,20 @@ export class BulletView extends TextFileView {
 		return minutesToTime(latest + step);
 	}
 
+	private fillDayOptions(select: HTMLSelectElement, current: string): void {
+		select.createEl("option", { value: "", text: "--" });
+
+		const days = this.dayOrder.map((day) => DAY_NAMES[day]);
+		// Whatever is already written stays selectable, even if it is not one
+		// of the seven — a note may say "Next week" or carry a date.
+		if (current && !days.includes(current)) {
+			select.createEl("option", { value: current, text: current });
+		}
+		for (const name of days) {
+			select.createEl("option", { value: name, text: name });
+		}
+	}
+
 	private fillTimeOptions(select: HTMLSelectElement, current: string): void {
 		select.createEl("option", { value: "", text: "--:--" });
 
@@ -762,11 +778,14 @@ export class BulletView extends TextFileView {
 			});
 			check.setAttr("aria-label", "Toggle event");
 
-			const day = row.createEl("input", {
-				cls: "bl-input bl-event-day",
-				attr: { type: "text", placeholder: "Day", value: ev.day },
+			const dayWrap = row.createDiv({ cls: "bl-select-wrap bl-day-wrap" });
+			const day = dayWrap.createEl("select", {
+				cls: "bl-select bl-day-select",
 			});
-			day.oninput = () => {
+			this.fillDayOptions(day, ev.day);
+			day.value = ev.day;
+			day.setAttr("aria-label", "Day");
+			day.onchange = () => {
 				ev.day = day.value;
 				this.touch();
 			};
@@ -808,7 +827,7 @@ export class BulletView extends TextFileView {
 		this.addButton(host, "Add event", () => {
 			this.model.events.push({ id: uid("e"), day: "", text: "", done: false });
 			this.renderEvents();
-			this.focusLast(host, ".bl-event-day");
+			this.focusLast(host, ".bl-day-select");
 			this.touch();
 		});
 	}

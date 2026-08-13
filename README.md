@@ -18,7 +18,8 @@ landscape is much more comfortable.
 - **One page per week**, created automatically, named `2026-W30.md` by default.
 - **Tasks** with tick boxes, a priority star, and drag-to-reorder.
 - **Meetings** grouped by day, picked from a time list and kept in time order.
-- **Events** — a dated checklist for the things that aren't meetings.
+- **Events** — a checklist for the things that aren't meetings, each with a day
+  picked from a list.
 - **Habit trackers** — a 7-column grid you fill in however you like: a tick, a
   number, a word.
 - **Time blocks** — a grid of a block per project per day, tapped to mark done,

@@ -19,7 +19,7 @@
 .bullet-view {
 	/* Bumped with each release; the diagnostics report reads it back, so a
 	   stale stylesheet can be told apart from one that is being overridden. */
-	--bl-css-version: "1.0.18";
+	--bl-css-version: "1.0.19";
 
 	--bl-scale: 1;
 	--bl-auto: 1;
@@ -812,8 +812,8 @@
 	font-variant-numeric: tabular-nums;
 }
 
-/* time picker */
-.bullet-view .bl-time-wrap {
+/* pickers: a native select styled as plain text with a caret beside it */
+.bullet-view .bl-select-wrap {
 	position: relative;
 	display: inline-flex;
 	align-items: center;
@@ -823,7 +823,7 @@
 
 /* The caret is drawn here rather than on the select, so it takes the current
    colour and the select itself can stay a plain piece of text. */
-.bullet-view .bl-time-wrap::after {
+.bullet-view .bl-select-wrap::after {
 	content: "";
 	position: absolute;
 	inset-inline-end: 0.4em;
@@ -836,8 +836,7 @@
 	pointer-events: none;
 }
 
-.bullet-view .bl-time-select {
-	width: 4.7em;
+.bullet-view .bl-select {
 	height: calc(var(--bl-row-h) - 0.25em);
 	padding: 0 1.2em 0 0.2em;
 	border: none;
@@ -852,18 +851,27 @@
 	cursor: pointer;
 }
 
-.bullet-view .bl-time-wrap:hover {
+.bullet-view .bl-select-wrap:hover {
 	color: var(--bl-text);
 }
 
-.bullet-view .bl-time-select:focus,
-.bullet-view .bl-time-select:focus-visible {
+.bullet-view .bl-time-select {
+	width: 4.7em;
+}
+
+.bullet-view .bl-day-select {
+	width: 7.4em;
+	font-size: 0.94em;
+}
+
+.bullet-view .bl-select:focus,
+.bullet-view .bl-select:focus-visible {
 	outline: none;
 	box-shadow: inset 0 -1px 0 0 var(--bl-accent);
 }
 
 /* the native list, where the platform lets us style it */
-.bullet-view .bl-time-select option {
+.bullet-view .bl-select option {
 	background: var(--bl-panel);
 	color: var(--bl-text);
 }
@@ -978,13 +986,6 @@
 }
 
 /* ---------------------------------------------------------------- events */
-
-.bullet-view .bl-event-day {
-	flex: 0 0 auto;
-	width: 6em;
-	color: var(--bl-muted);
-	font-size: 0.94em;
-}
 
 /* ----------------------------------------------------------------- notes */
 
@@ -1102,6 +1103,14 @@
 @media (max-width: 560px) {
 	.bullet-view {
 		--bl-auto: 0.82;
+	}
+
+	.bullet-view .bl-time-select {
+		width: 4.2em;
+	}
+
+	.bullet-view .bl-day-select {
+		width: 6.2em;
 	}
 
 	.bullet-view .bl-mode-btn span:last-child {
