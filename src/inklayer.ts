@@ -180,6 +180,27 @@ export class InkLayer {
 		return { downs: this.downCount, strokes: this.strokeCount };
 	}
 
+	/** Enough about an element to recognise it in a log. */
+	private describe(node: EventTarget | null): string {
+		const el = node as HTMLElement | null;
+		if (!el || typeof el.tagName !== "string") return "none";
+		const cls =
+			typeof el.className === "string" && el.className
+				? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".")
+				: "";
+		return `${el.tagName.toLowerCase()}${cls}`;
+	}
+
+	/** Where the pen is, where the canvas is, and what the pen landed on. */
+	private geometryOf(e: PointerEvent): string {
+		const r = this.canvas.getBoundingClientRect();
+		return (
+			`pen(${Math.round(e.clientX)},${Math.round(e.clientY)}) ` +
+			`canvas(${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}) ` +
+			`target=${this.describe(e.target)}`
+		);
+	}
+
 	private flag(note: string): void {
 		const at = ((performance.now() - this.traceOrigin) / 1000).toFixed(1);
 		this.anomalies.push(`${at}s ${note}`);
@@ -424,18 +445,21 @@ export class InkLayer {
 	private onPointerDown = (e: PointerEvent): void => {
 		if (this.mode === "off") return;
 
-		// Only events over the page itself; the toolbar and the rest of the
-		// app are left alone.
+		// Either signal is enough. Hit-testing and geometry can disagree — a
+		// stale layout, an overlay, a shifted viewport — and requiring both
+		// meant a pen squarely on the page was turned away when either one
+		// was wrong.
 		const target = e.target as Node | null;
 		const onPage =
 			target !== null &&
 			(target === this.canvas || (this.observedTarget?.contains(target) ?? false));
-		if (!onPage) return;
 
-		// Re-read where the canvas is before judging anything against it.
 		this.refreshOrigin();
-		if (!this.isOverCanvas(e)) {
-			this.log(e, "ignored: not over the page");
+		if (!onPage && !this.isOverCanvas(e)) {
+			// Never reject a pen in silence: record what it landed on instead.
+			if (this.isDrawingPointer(e)) {
+				this.log(e, `ignored: not over the page — ${this.geometryOf(e)}`);
+			}
 			return;
 		}
 
@@ -524,6 +548,9 @@ export class InkLayer {
 			return;
 		}
 		if (this.activePointerId !== e.pointerId) {
+			// The pen is on the glass but we have no stroke for it: its
+			// pointerdown was swallowed, or went to something else. Pick the
+			// stroke up from here rather than leaving the user drawing nothing.
 			if (this.isDrawingPointer(e) && e.buttons !== 0) {
 				if (this.activePointerId === null && !this.isOverCanvas(e)) {
 					// Before writing this off, make sure we know where the
@@ -532,29 +559,23 @@ export class InkLayer {
 					// origin would reject a pen that is squarely on the page.
 					this.refreshOrigin();
 				}
-				this.log(
-					e,
-					this.activePointerId === null
-						? this.isOverCanvas(e)
-							? "recovering: contact with no stroke"
-							: "ignored: outside the canvas"
-						: `ignored: another pointer owns the stroke (${this.activePointerId})`
-				);
+				const onPage =
+					e.target === this.canvas ||
+					(this.observedTarget?.contains(e.target as Node) ?? false);
+				if (this.activePointerId === null && (onPage || this.isOverCanvas(e))) {
+					this.startStroke(e);
+					this.log(e, "recovering: contact with no stroke");
+				} else {
+					this.log(
+						e,
+						this.activePointerId === null
+							? `ignored: outside the canvas — ${this.geometryOf(e)}`
+							: `ignored: another pointer owns the stroke (${this.activePointerId})`
+					);
+					return;
+				}
 			}
-			// The pen is on the glass but we have no stroke for it: its
-			// pointerdown was swallowed, or capture was taken away and the
-			// down went somewhere else. Pick the stroke up from here rather
-			// than leaving the user drawing nothing.
-			if (
-				this.activePointerId === null &&
-				this.isDrawingPointer(e) &&
-				e.buttons !== 0 &&
-				this.isOverCanvas(e)
-			) {
-				this.startStroke(e);
-			} else {
-				return;
-			}
+			if (this.activePointerId !== e.pointerId) return;
 		}
 		if (this.moveCount === 0) this.log(e, "first move");
 		this.moveCount++;
