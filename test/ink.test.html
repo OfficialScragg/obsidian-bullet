@@ -1,0 +1,151 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>ink test</title>
+<style>
+ html,body{margin:0;background:#0b0c0f;color:#ddd;font:12px monospace}
+ #stage{position:fixed;top:400px;left:0;width:600px;height:220px}
+ #out{white-space:pre;padding:8px}
+</style></head>
+<body>
+<pre id="out">running…</pre>
+<div id="stage"></div>
+<script type="module">
+// --- minimal polyfills for the Obsidian DOM helpers InkLayer uses ----------
+Object.assign(HTMLElement.prototype, {
+  createEl(tag, o = {}) {
+    const el = document.createElement(tag);
+    if (o.cls) el.className = o.cls;
+    if (o.text) el.textContent = o.text;
+    this.appendChild(el);
+    return el;
+  },
+  toggleClass(cls, on) { this.classList.toggle(cls, !!on); },
+  addClass(cls) { this.classList.add(cls); },
+  empty() { this.replaceChildren(); },
+});
+
+import { InkLayer } from './inklayer.mjs';
+import { encodeInk, decodeInk } from './ink.mjs';
+
+const log = [];
+let failures = 0;
+const paint = () => { document.getElementById('out').textContent = log.join('\n'); };
+window.onerror = (m, f, l) => { log.push('ERROR: ' + m + ' @' + l); paint(); };
+window.onunhandledrejection = (e) => { log.push('REJECT: ' + (e.reason?.stack || e.reason)); paint(); };
+const check = (name, got, want) => {
+  const ok = JSON.stringify(got) === JSON.stringify(want);
+  if (!ok) failures++;
+  log.push(`${ok ? 'PASS' : 'FAIL'}  ${name}` + (ok ? '' : `  got=${JSON.stringify(got)} want=${JSON.stringify(want)}`));
+  paint();
+};
+const near = (name, got, want, tol) => {
+  const ok = Math.abs(got - want) <= tol;
+  if (!ok) failures++;
+  log.push(`${ok ? 'PASS' : 'FAIL'}  ${name}  got=${got.toFixed?.(2) ?? got} want≈${want}±${tol}`);
+  paint();
+};
+
+const stage = document.getElementById('stage');
+let changes = 0;
+const ink = new InkLayer(stage, {
+  fingerDraw: false, color: '#c9a227', width: 2.4,
+  onChange: () => { changes++; },
+});
+ink.observe(stage, null);
+ink.setMode('draw');
+
+const canvas = ink.canvas;
+let pid = 1;
+function send(type, x, y, opts = {}) {
+  canvas.dispatchEvent(new PointerEvent(type, {
+    pointerId: opts.id ?? pid, pointerType: opts.type ?? 'pen',
+    clientX: x, clientY: y, pressure: opts.pressure ?? 0.5,
+    bubbles: true, cancelable: true, isPrimary: true,
+  }));
+}
+// pointerup force-flushes any pending points, so the test does not need to
+// wait on rAF (which headless virtual time does not drive reliably).
+const frame = () => new Promise(r => setTimeout(r, 0));
+
+// --- a stroke: down, several moves, up ------------------------------------
+async function drawLine(y, n = 30, id = pid) {
+  send('pointerdown', 100, y, { id });
+  for (let i = 1; i <= n; i++) {
+    send('pointermove', 100 + i * 8, y, { id });
+    if (i % 5 === 0) await frame();
+  }
+  await frame();
+  send('pointerup', 100 + n * 8, y, { id });
+}
+
+(async () => {
+ try {
+  const t0 = performance.now();
+  await drawLine(200);
+  check('one stroke recorded', ink.getStrokes().length, 1);
+
+  const pts = ink.getStrokes()[0].points;
+  check('stroke keeps its points', pts.length > 25 && pts.length <= 31, true);
+  const toInk = px => px / (stage.clientWidth / 1000);
+  near('first point x maps to ink space', pts[0].x, toInk(100), 2);
+  near('last point x maps to ink space', pts[pts.length - 1].x, toInk(340), 4);
+  check('save fired once per stroke', changes, 1);
+
+  // a lifted pen must start a separate stroke, not extend the last one
+  pid = 2;
+  await drawLine(300, 20, 2);
+  check('lifting the pen ends the stroke', ink.getStrokes().length, 2);
+  check('second stroke is its own', ink.getStrokes()[1].points.length > 15, true);
+  check('save fired again', changes, 2);
+
+  // undo / redo
+  ink.undo();
+  check('undo removes a stroke', ink.getStrokes().length, 1);
+  ink.redo();
+  check('redo restores it', ink.getStrokes().length, 2);
+
+  // a finger must not draw when fingerDraw is off
+  const before = ink.getStrokes().length;
+  send('pointerdown', 500, 400, { id: 9, type: 'touch' });
+  send('pointermove', 520, 400, { id: 9, type: 'touch' });
+  await frame();
+  send('pointerup', 520, 400, { id: 9, type: 'touch' });
+  check('finger does not draw', ink.getStrokes().length, before);
+
+  // round trip through the stored format
+  const encoded = encodeInk(ink.getStrokes(), true);
+  const decoded = decodeInk(encoded);
+  check('round trip keeps stroke count', decoded.length, ink.getStrokes().length);
+  check('round trip keeps point count',
+    decoded.map(s => s.points.length), ink.getStrokes().map(s => s.points.length));
+  near('round trip keeps geometry', decoded[0].points[3].x, ink.getStrokes()[0].points[3].x, 0.11);
+  check('ink space is width independent', Math.round(pts[pts.length-1].x) <= 1000, true);
+
+  // erase
+  ink.setMode('erase');
+  const target = ink.getStrokes()[0].points[5];
+  send('pointerdown', 100 + 5 * 8, 200, { id: 20 });
+  await frame();
+  send('pointerup', 100 + 5 * 8, 200, { id: 20 });
+  check('eraser removes the stroke under it', ink.getStrokes().length, 1);
+
+  // --- cost of the old per-point layout read vs the cached origin ---------
+  const N = 2000;
+  let sink = 0;
+  const a = performance.now();
+  for (let i = 0; i < N; i++) sink += canvas.getBoundingClientRect().left;
+  const rectMs = performance.now() - a;
+  const b = performance.now();
+  for (let i = 0; i < N; i++) sink += canvas.width;
+  const cachedMs = performance.now() - b;
+
+  log.push('');
+  log.push(`getBoundingClientRect x${N}: ${rectMs.toFixed(1)} ms  (${(rectMs / N * 1000).toFixed(1)} us each)`);
+  log.push(`cached read x${N}:            ${cachedMs.toFixed(1)} ms`);
+  log.push(`total test time: ${(performance.now() - t0).toFixed(0)} ms  sink=${sink > 0 ? 'ok' : 'ok'}`);
+  log.push('');
+  log.push(failures === 0 ? 'ALL PASS' : `${failures} FAILURE(S)`);
+  paint();
+ } catch (err) { log.push('THREW: ' + (err?.stack || err)); paint(); }
+})();
+</script>
+</body></html>

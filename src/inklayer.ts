@@ -40,6 +40,14 @@ export class InkLayer {
 	private scale = 1;
 	private resizeObserver: ResizeObserver | null = null;
 
+	/** Canvas origin in client space, cached — see toInk(). */
+	private originX = 0;
+	private originY = 0;
+
+	/** Points captured since the last animation frame. */
+	private pending: InkPoint[] = [];
+	private frameHandle = 0;
+
 	/** The outer page scroller, used when nothing nearer can scroll. */
 	private pageScroller: HTMLElement | null = null;
 	/** The element the current finger drag is actually panning. */
@@ -81,6 +89,7 @@ export class InkLayer {
 	destroy(): void {
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = null;
+		if (this.frameHandle) cancelAnimationFrame(this.frameHandle);
 		if (this.panFrame) cancelAnimationFrame(this.panFrame);
 		this.canvas.remove();
 	}
@@ -95,6 +104,55 @@ export class InkLayer {
 
 	getStrokes(): Stroke[] {
 		return this.strokes;
+	}
+
+	/** Numbers for the diagnostics command. */
+	measure(): {
+		strokes: number;
+		points: number;
+		cssWidth: number;
+		cssHeight: number;
+		backingWidth: number;
+		backingHeight: number;
+		rectMs: number;
+		paintMs: number;
+		redrawMs: number;
+	} {
+		const points = this.strokes.reduce((n, s) => n + s.points.length, 0);
+
+		// What the old code did once per input point.
+		const rectStart = performance.now();
+		for (let i = 0; i < 240; i++) this.canvas.getBoundingClientRect();
+		const rectMs = performance.now() - rectStart;
+
+		// A frame's worth of segments at the current canvas size.
+		const probe: Stroke = {
+			color: this.opts.color,
+			width: this.opts.width,
+			points: [],
+		};
+		for (let i = 0; i < 8; i++) {
+			probe.points.push({ x: 20 + i * 3, y: 20 + (i % 2) * 3, p: 0.5 });
+		}
+		const paintStart = performance.now();
+		for (let i = 0; i < 60; i++) paintStroke(this.ctx, probe, this.scale);
+		const paintMs = (performance.now() - paintStart) / 60;
+
+		const redrawStart = performance.now();
+		this.redraw();
+		const redrawMs = performance.now() - redrawStart;
+
+		return {
+			strokes: this.strokes.length,
+			points,
+			cssWidth: Math.round(this.cssWidth),
+			cssHeight: Math.round(this.cssHeight),
+			backingWidth: this.canvas.width,
+			backingHeight: this.canvas.height,
+			rectMs,
+			paintMs,
+			redrawMs,
+		};
 	}
 
 	setMode(mode: InkMode): void {
@@ -168,14 +226,28 @@ export class InkLayer {
 		this.canvas.style.width = `${width}px`;
 		this.canvas.style.height = `${height}px`;
 		this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		this.refreshOrigin();
 		this.redraw();
 	}
 
-	private toInk(e: PointerEvent): { x: number; y: number } {
+	/**
+	 * Re-read where the canvas sits. getBoundingClientRect() forces the browser
+	 * to flush layout, so this must never be called per point: an Apple Pencil
+	 * reports around 240 points a second, and doing it per point meant hundreds
+	 * of forced layouts a second against the whole page. Once per stroke, and
+	 * on resize, is enough — the canvas only moves when the pane does.
+	 */
+	private refreshOrigin(): void {
 		const rect = this.canvas.getBoundingClientRect();
+		this.originX = rect.left;
+		this.originY = rect.top;
+	}
+
+	private toInk(e: PointerEvent | { clientX: number; clientY: number }): InkPoint {
 		return {
-			x: (e.clientX - rect.left) / this.scale,
-			y: (e.clientY - rect.top) / this.scale,
+			x: (e.clientX - this.originX) / this.scale,
+			y: (e.clientY - this.originY) / this.scale,
+			p: "pointerType" in e ? pressureOf(e as PointerEvent) : 0.5,
 		};
 	}
 
@@ -204,19 +276,24 @@ export class InkLayer {
 
 		e.preventDefault();
 		this.activePointerId = e.pointerId;
-		this.canvas.setPointerCapture(e.pointerId);
+		// Capture is an optimisation, not a requirement. It throws if the
+		// pointer has already gone, and letting that escape would abandon the
+		// stroke before it starts.
+		this.capture(e.pointerId);
+		this.refreshOrigin();
+		this.pending.length = 0;
 
-		const { x, y } = this.toInk(e);
+		const point = this.toInk(e);
 
 		if (this.mode === "erase") {
-			this.eraseAt(x, y);
+			this.eraseAt(point.x, point.y);
 			return;
 		}
 
 		this.active = {
 			color: this.opts.color,
 			width: this.opts.width,
-			points: [{ x, y, p: pressureOf(e) }],
+			points: [point],
 		};
 		this.redoStack = [];
 	};
@@ -231,27 +308,42 @@ export class InkLayer {
 		if (this.activePointerId !== e.pointerId) return;
 		e.preventDefault();
 
-		const events =
-			typeof e.getCoalescedEvents === "function" ? e.getCoalescedEvents() : [e];
+		// Collect here and draw on the next frame. Drawing inline meant doing
+		// canvas work several times per frame and holding up the input queue,
+		// which is what the pen felt as lag.
+		const coalesced =
+			typeof e.getCoalescedEvents === "function" ? e.getCoalescedEvents() : [];
+		const events = coalesced.length ? coalesced : [e];
+		for (const ev of events) this.pending.push(this.toInk(ev));
+
+		if (!this.frameHandle) {
+			this.frameHandle = requestAnimationFrame(this.renderFrame);
+		}
+	};
+
+	private renderFrame = (): void => {
+		this.frameHandle = 0;
+		const points = this.pending;
+		if (points.length === 0) return;
+		this.pending = [];
 
 		if (this.mode === "erase") {
-			for (const ev of events.length ? events : [e]) {
-				const { x, y } = this.toInk(ev);
-				this.eraseAt(x, y);
-			}
+			for (const point of points) this.eraseAt(point.x, point.y);
 			return;
 		}
 		if (!this.active) return;
 
-		for (const ev of events.length ? events : [e]) {
-			const { x, y } = this.toInk(ev);
-			const points = this.active.points;
-			const last = points[points.length - 1];
+		const stroke = this.active;
+		const startedAt = stroke.points.length;
+		for (const point of points) {
+			const last = stroke.points[stroke.points.length - 1];
 			// Drop sub-pixel jitter; it bloats the stored stroke for nothing.
-			if (last && Math.hypot(x - last.x, y - last.y) < 0.25) continue;
-			points.push({ x, y, p: pressureOf(ev) });
+			if (last && Math.hypot(point.x - last.x, point.y - last.y) < 0.25) continue;
+			stroke.points.push(point);
 		}
-		this.paintActiveTail();
+		if (stroke.points.length === startedAt) return;
+
+		paintStroke(this.ctx, stroke, this.scale, Math.max(1, startedAt - 1));
 	};
 
 	private onPointerUp = (e: PointerEvent): void => {
@@ -261,10 +353,15 @@ export class InkLayer {
 		}
 		if (this.activePointerId !== e.pointerId) return;
 
-		this.activePointerId = null;
-		if (this.canvas.hasPointerCapture(e.pointerId)) {
-			this.canvas.releasePointerCapture(e.pointerId);
+		// Take whatever the last frame didn't get to.
+		if (this.frameHandle) {
+			cancelAnimationFrame(this.frameHandle);
+			this.frameHandle = 0;
 		}
+		this.renderFrame();
+
+		this.activePointerId = null;
+		this.release(e.pointerId);
 
 		if (this.mode === "erase") {
 			this.opts.onChange();
@@ -276,25 +373,9 @@ export class InkLayer {
 		this.active = null;
 		if (finished.points.length > 0) {
 			this.strokes.push(finished);
-			// Paint just this stroke over its own tail. A full redraw here is
-			// O(every stroke on the page) and shows up as lag between letters.
-			paintStroke(this.ctx, finished, this.scale);
 			this.opts.onChange();
 		}
 	};
-
-	/** Draw only the newest couple of segments, so long strokes stay smooth. */
-	private paintActiveTail(): void {
-		if (!this.active) return;
-		const points = this.active.points;
-		if (points.length < 2) return;
-		const tail: Stroke = {
-			color: this.active.color,
-			width: this.active.width,
-			points: points.slice(Math.max(0, points.length - 3)),
-		};
-		paintStroke(this.ctx, tail, this.scale);
-	}
 
 	private eraseAt(x: number, y: number): void {
 		const before = this.strokes.length;
@@ -329,6 +410,24 @@ export class InkLayer {
 		return this.pageScroller;
 	}
 
+	private capture(pointerId: number): void {
+		try {
+			this.canvas.setPointerCapture(pointerId);
+		} catch {
+			/* the pointer is already gone; carry on without capture */
+		}
+	}
+
+	private release(pointerId: number): void {
+		try {
+			if (this.canvas.hasPointerCapture(pointerId)) {
+				this.canvas.releasePointerCapture(pointerId);
+			}
+		} catch {
+			/* already released */
+		}
+	}
+
 	private beginPan(e: PointerEvent): void {
 		this.scroller = this.scrollableUnder(e.clientX, e.clientY);
 		if (!this.scroller) return;
@@ -337,7 +436,7 @@ export class InkLayer {
 		this.panLastY = e.clientY;
 		this.panLastTime = performance.now();
 		this.panVelocity = 0;
-		this.canvas.setPointerCapture(e.pointerId);
+		this.capture(e.pointerId);
 	}
 
 	private movePan(e: PointerEvent): void {
@@ -352,9 +451,7 @@ export class InkLayer {
 	}
 
 	private endPan(): void {
-		if (this.panPointerId !== null && this.canvas.hasPointerCapture(this.panPointerId)) {
-			this.canvas.releasePointerCapture(this.panPointerId);
-		}
+		if (this.panPointerId !== null) this.release(this.panPointerId);
 		this.panPointerId = null;
 
 		const scroller = this.scroller;

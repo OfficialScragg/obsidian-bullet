@@ -43,6 +43,11 @@ export class BulletView extends TextFileView {
 	private extraFrontmatter: string[] = [];
 	private ink: InkLayer | null = null;
 
+	/** Exposed for the diagnostics command. */
+	get inkLayer(): InkLayer | null {
+		return this.ink;
+	}
+
 	private scrollEl: HTMLElement | null = null;
 	private pageEl: HTMLElement | null = null;
 	private toolbarEl: HTMLElement | null = null;

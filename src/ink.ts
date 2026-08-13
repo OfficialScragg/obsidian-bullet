@@ -133,7 +133,8 @@ export function strokeHitTest(
 export function paintStroke(
 	ctx: CanvasRenderingContext2D,
 	stroke: Stroke,
-	scale: number
+	scale: number,
+	fromIndex = 1
 ): void {
 	const pts = stroke.points;
 	if (pts.length === 0) return;
@@ -156,7 +157,9 @@ export function paintStroke(
 		return;
 	}
 
-	for (let i = 1; i < pts.length; i++) {
+	// Painting only the newest segments keeps a long stroke from costing more
+	// with every frame; `fromIndex` starts one segment early for smooth joins.
+	for (let i = Math.max(1, fromIndex); i < pts.length; i++) {
 		const prev = pts[i - 1];
 		const cur = pts[i];
 		ctx.beginPath();

@@ -4,3 +4,5 @@ main.js
 .DS_Store
 data.json
 package-lock.json
+
+test/*.mjs

@@ -60,6 +60,7 @@ the current week is created if it doesn't exist yet.
 | Bullet: Open previous week | Jumps back a week |
 | Bullet: Open current page as markdown | Shows the raw markdown behind the page |
 | Bullet: Open current note as a Bullet page | Switches a markdown note back to the page view |
+| Bullet: Diagnose ink performance | Measures where drawing time goes on this device |
 
 <img src="docs/screenshot-ipad.png" width="420" alt="Bullet on an iPad">
 
@@ -76,6 +77,10 @@ Hit **Draw** in the toolbar. With an Apple Pencil you can then write anywhere on
 the page while a finger still scrolls it — that's the default, and it means your
 palm is ignored. If you'd rather draw with a finger too, turn on *Draw with
 finger* in settings.
+
+If writing ever feels slow, run **Bullet: Diagnose ink performance** — it
+measures canvas size, paint cost and save cost on the device you're actually
+using, and copies the numbers to the clipboard.
 
 The eraser removes whole strokes rather than nibbling at them, which is far more
 predictable on a touch screen. Undo and redo apply to strokes only; they don't

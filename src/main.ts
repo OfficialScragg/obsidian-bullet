@@ -23,6 +23,7 @@ import {
 } from "./types";
 import { parseNote, serializeNote } from "./serialize";
 import { BulletView } from "./view";
+import { InkDiagnosticsModal } from "./diagnostics";
 import {
 	addDays,
 	formatDate,
@@ -99,6 +100,21 @@ export default class BulletPlugin extends Plugin {
 					const state = view.leaf.getViewState();
 					state.type = VIEW_TYPE_BULLET;
 					void view.leaf.setViewState(state);
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "ink-diagnostics",
+			name: "Diagnose ink performance",
+			checkCallback: (checking) => {
+				const leaf = this.app.workspace.getMostRecentLeaf();
+				const view = leaf?.view;
+				const isBullet = view instanceof BulletView;
+				if (checking) return isBullet;
+				if (view instanceof BulletView) {
+					new InkDiagnosticsModal(this.app, view).open();
 				}
 				return true;
 			},

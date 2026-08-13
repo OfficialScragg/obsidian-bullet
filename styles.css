@@ -289,6 +289,21 @@
 	z-index: 5;
 	touch-action: auto;
 	pointer-events: none;
+	/* Give the canvas its own compositing layer. Without this every stroke
+	   repaints what is underneath it — the dot-grid gradient and all four
+	   panels — which is ruinous on an iPad. */
+	transform: translateZ(0);
+	backface-visibility: hidden;
+}
+
+.bullet-view .bl-ink-canvas.is-live {
+	will-change: transform;
+}
+
+/* Nothing under the pen needs hover work while drawing. */
+.bullet-view .bl-page.is-inking .bl-grid {
+	pointer-events: none;
+	user-select: none;
 }
 
 /* The paper spread: tasks and meetings across the top, trackers and events
