@@ -67,6 +67,10 @@ export class InkDiagnosticsModal extends Modal {
 			["Full redraw of every stroke", `${canvas.redrawMs.toFixed(1)} ms`],
 			["Serialise the page", `${serializeMs.toFixed(1)} ms`],
 			["Page size on disk", `${(text.length / 1024).toFixed(1)} KB`],
+			[
+				"Page rebuilt since opening",
+				`${this.view.renderLog.length}x  ${this.view.renderLog.slice(-8).join(" ")}`,
+			],
 		];
 
 		const table = contentEl.createEl("table");
@@ -80,14 +84,18 @@ export class InkDiagnosticsModal extends Modal {
 		}
 
 		contentEl.createEl("p", {
-			text: "A display frame is 16 ms at 60 Hz, 8 ms at 120 Hz. If the first two rows are small but drawing still feels slow, the hold-up is outside this plugin.",
+			text: "Draw a stroke that fails, then open this straight away — the pointer log at the bottom of the report shows what the plugin was handed and what it did with it.",
 			cls: "setting-item-description",
 		});
 
+		const trace = ink.getTrace();
 		this.report = [
 			`Bullet ${this.plugin.manifest.version} — ink diagnostics`,
 			...rows.map(([label, value]) => `${label}: ${value}`),
 			`Platform: ${navigator.userAgent}`,
+			"",
+			"Pointer log (newest last):",
+			...(trace.length ? trace.slice(-45) : ["(nothing recorded)"]),
 		].join("\n");
 
 		// A textarea so the text can be selected on a tablet, where a copy

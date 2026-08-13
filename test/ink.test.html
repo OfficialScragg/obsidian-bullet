@@ -216,6 +216,13 @@ async function drawLine(y, n = 30, id = pid) {
   await drawLine(170, 10, 4);
   check('cache still correct after a rebuild then append', ink.encodedInk(true), full());
 
+  // --- the pointer log must record what actually happened ----------------
+  const trace = ink.getTrace().join('\n');
+  check('pointer log records stroke starts', /stroke start/.test(trace), true);
+  check('pointer log records commits', /stroke committed/.test(trace), true);
+  check('pointer log records rejected palms', /palm|pan start/.test(trace), true);
+  check('pointer log is bounded', ink.getTrace().length <= 120, true);
+
   // --- cost of the old per-point layout read vs the cached origin ---------
   const N = 2000;
   let sink = 0;

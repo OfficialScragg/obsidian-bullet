@@ -52,6 +52,15 @@ export class InkLayer {
 	private pending: InkPoint[] = [];
 	private frameHandle = 0;
 
+	/**
+	 * A ring buffer of what the pointer actually did. When a stroke fails to
+	 * appear the question is never how fast we were — it is which event we got,
+	 * and what we decided to do with it. This records exactly that.
+	 */
+	private trace: string[] = [];
+	private traceOrigin = performance.now();
+	private moveCount = 0;
+
 	/** Timing of recent strokes, for the diagnostics command. */
 	private strokeStartedAt = 0;
 	private firstPaintMs: number[] = [];
@@ -133,6 +142,20 @@ export class InkLayer {
 
 	getStrokes(): Stroke[] {
 		return this.strokes;
+	}
+
+	/** The recent pointer history, newest last. */
+	getTrace(): string[] {
+		return this.trace;
+	}
+
+	private log(event: PointerEvent | null, decision: string): void {
+		const at = (performance.now() - this.traceOrigin).toFixed(0).padStart(6);
+		const detail = event
+			? `${event.type.replace("pointer", "")} ${event.pointerType} id=${event.pointerId} buttons=${event.buttons} p=${event.pressure.toFixed(2)}`
+			: "";
+		this.trace.push(`${at}ms ${detail} -> ${decision} [mode=${this.mode}]`);
+		if (this.trace.length > 120) this.trace.shift();
 	}
 
 	/**
@@ -244,6 +267,7 @@ export class InkLayer {
 
 	setMode(mode: InkMode): void {
 		this.mode = mode;
+		this.log(null, `mode set to ${mode}`);
 		this.applyMode();
 	}
 
@@ -354,12 +378,19 @@ export class InkLayer {
 	}
 
 	private onPointerDown = (e: PointerEvent): void => {
-		if (this.mode === "off") return;
+		if (this.mode === "off") {
+			this.log(e, "ignored: not in draw mode");
+			return;
+		}
 
 		if (!this.isDrawingPointer(e)) {
 			// A finger arriving while the pen is working is a palm. Ignore it
 			// outright rather than letting it start a pan under the writing.
-			if (this.activePointerId !== null) return;
+			if (this.activePointerId !== null) {
+				this.log(e, "ignored: palm, pen is already down");
+				return;
+			}
+			this.log(e, "pan start");
 			this.beginPan(e);
 			return;
 		}
@@ -382,6 +413,8 @@ export class InkLayer {
 		this.refreshOrigin();
 		this.pending.length = 0;
 		this.strokeStartedAt = performance.now();
+		this.moveCount = 0;
+		this.log(e, "stroke start");
 
 		const point = this.toInk(e);
 
@@ -432,6 +465,16 @@ export class InkLayer {
 			return;
 		}
 		if (this.activePointerId !== e.pointerId) {
+			if (this.isDrawingPointer(e) && e.buttons !== 0) {
+				this.log(
+					e,
+					this.activePointerId === null
+						? this.isOverCanvas(e)
+							? "recovering: contact with no stroke"
+							: "ignored: outside the canvas"
+						: `ignored: another pointer owns the stroke (${this.activePointerId})`
+				);
+			}
 			// The pen is on the glass but we have no stroke for it: its
 			// pointerdown was swallowed, or capture was taken away and the
 			// down went somewhere else. Pick the stroke up from here rather
@@ -447,6 +490,8 @@ export class InkLayer {
 				return;
 			}
 		}
+		if (this.moveCount === 0) this.log(e, "first move");
+		this.moveCount++;
 		e.preventDefault();
 
 		// Collect here and draw on the next frame. Drawing inline meant doing
@@ -515,6 +560,9 @@ export class InkLayer {
 	};
 
 	private onPointerUp = (e: PointerEvent): void => {
+		if (e.type === "pointercancel") {
+			this.log(e, "CANCELLED by the system");
+		}
 		if (this.panPointerId === e.pointerId) {
 			this.endPan();
 			return;
@@ -545,6 +593,10 @@ export class InkLayer {
 		if (!finished || finished.points.length === 0) return;
 
 		this.strokes.push(finished);
+		this.log(
+			null,
+			`stroke committed: ${finished.points.length} points from ${this.moveCount} moves`
+		);
 		// A tap, or a flick too small to clear the jitter filter, never reached
 		// renderFrame — paint it here or it simply never appears.
 		if (finished.points.length < 2) {

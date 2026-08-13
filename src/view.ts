@@ -84,6 +84,14 @@ export class BulletView extends TextFileView {
 	private saveTimer = 0;
 	private savePendingSince = 0;
 
+	/**
+	 * When the page is rebuilt the ink canvas is replaced with it. If that
+	 * happens while writing it would take the stroke with it, so the rebuilds
+	 * are counted and reported.
+	 */
+	renderLog: string[] = [];
+	private openedAt = performance.now();
+
 	constructor(leaf: WorkspaceLeaf, plugin: BulletPlugin) {
 		super(leaf);
 		this.plugin = plugin;
@@ -124,7 +132,10 @@ export class BulletView extends TextFileView {
 	}
 
 	setViewData(data: string, clear: boolean): void {
-		if (clear) this.clear();
+		if (clear) {
+			this.renderLog.push("(reload)");
+			this.clear();
+		}
 
 		// A save round-trips through here. Compare against what we last wrote
 		// rather than re-serialising: with a page full of ink that comparison
@@ -258,6 +269,11 @@ export class BulletView extends TextFileView {
 	// -- rendering ---------------------------------------------------------
 
 	private render(): void {
+		this.renderLog.push(
+			`${((performance.now() - this.openedAt) / 1000).toFixed(1)}s`
+		);
+		if (this.renderLog.length > 40) this.renderLog.shift();
+
 		const root = this.contentEl;
 		root.empty();
 		root.addClass("bullet-view");
