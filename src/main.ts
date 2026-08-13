@@ -38,6 +38,11 @@ export default class BulletPlugin extends Plugin {
 	/** Files the user has deliberately opened as raw markdown this session. */
 	private markdownOverride = new Set<string>();
 
+	/** Leaves mid-swap, so a swap can't re-enter itself via layout-change. */
+	private switching = new WeakSet<WorkspaceLeaf>();
+	private syncQueued = false;
+	private layoutReady = false;
+
 	async onload(): Promise<void> {
 		await this.loadSettings();
 
@@ -100,11 +105,15 @@ export default class BulletPlugin extends Plugin {
 		});
 
 		this.registerEvent(
-			this.app.workspace.on("layout-change", () => this.syncLeaves())
+			this.app.workspace.on("layout-change", () => this.queueSync())
+		);
+		this.registerEvent(
+			this.app.workspace.on("file-open", () => this.queueSync())
 		);
 
 		this.app.workspace.onLayoutReady(async () => {
-			this.syncLeaves();
+			this.layoutReady = true;
+			this.queueSync();
 			if (this.settings.autoCreate) {
 				await this.ensureWeekNote(new Date());
 			}
@@ -135,6 +144,21 @@ export default class BulletPlugin extends Plugin {
 		}
 	}
 
+	/**
+	 * layout-change fires constantly, including while Obsidian is restoring the
+	 * workspace at startup. Swapping views synchronously from inside it meant
+	 * this plugin was fighting that restore — coalesce to one pass per tick and
+	 * never run before the layout is ready.
+	 */
+	private queueSync(): void {
+		if (!this.layoutReady || this.syncQueued) return;
+		this.syncQueued = true;
+		window.setTimeout(() => {
+			this.syncQueued = false;
+			this.syncLeaves();
+		}, 0);
+	}
+
 	// -- view swapping -----------------------------------------------------
 
 	private isBulletFile(file: TFile): boolean {
@@ -145,6 +169,8 @@ export default class BulletPlugin extends Plugin {
 	/** Re-open any markdown leaf showing a Bullet note as the Bullet page. */
 	private syncLeaves(): void {
 		for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+			if (this.switching.has(leaf)) continue;
+
 			const view = leaf.view;
 			if (!(view instanceof MarkdownView)) continue;
 			const file = view.file;
@@ -153,8 +179,14 @@ export default class BulletPlugin extends Plugin {
 			if (!this.isBulletFile(file)) continue;
 
 			const state = leaf.getViewState();
+			if (state.type === VIEW_TYPE_BULLET) continue;
 			state.type = VIEW_TYPE_BULLET;
-			void leaf.setViewState(state);
+
+			this.switching.add(leaf);
+			leaf
+				.setViewState(state)
+				.catch((err) => console.error("Bullet: could not open the page", err))
+				.finally(() => this.switching.delete(leaf));
 		}
 	}
 

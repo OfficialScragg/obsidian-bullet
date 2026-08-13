@@ -61,7 +61,6 @@ export class InkLayer {
 		this.canvas.addEventListener("pointermove", this.onPointerMove);
 		this.canvas.addEventListener("pointerup", this.onPointerUp);
 		this.canvas.addEventListener("pointercancel", this.onPointerUp);
-		this.canvas.addEventListener("pointerleave", this.onPointerUp);
 		// Stop iPadOS turning a long press into a text-selection loupe.
 		this.canvas.addEventListener("contextmenu", (e) => {
 			if (this.mode !== "off") e.preventDefault();
@@ -249,7 +248,7 @@ export class InkLayer {
 			const points = this.active.points;
 			const last = points[points.length - 1];
 			// Drop sub-pixel jitter; it bloats the stored stroke for nothing.
-			if (last && Math.hypot(x - last.x, y - last.y) < 0.4) continue;
+			if (last && Math.hypot(x - last.x, y - last.y) < 0.25) continue;
 			points.push({ x, y, p: pressureOf(ev) });
 		}
 		this.paintActiveTail();
@@ -277,7 +276,9 @@ export class InkLayer {
 		this.active = null;
 		if (finished.points.length > 0) {
 			this.strokes.push(finished);
-			this.redraw();
+			// Paint just this stroke over its own tail. A full redraw here is
+			// O(every stroke on the page) and shows up as lag between letters.
+			paintStroke(this.ctx, finished, this.scale);
 			this.opts.onChange();
 		}
 	};
@@ -290,7 +291,7 @@ export class InkLayer {
 		const tail: Stroke = {
 			color: this.active.color,
 			width: this.active.width,
-			points: points.slice(Math.max(0, points.length - 4)),
+			points: points.slice(Math.max(0, points.length - 3)),
 		};
 		paintStroke(this.ctx, tail, this.scale);
 	}

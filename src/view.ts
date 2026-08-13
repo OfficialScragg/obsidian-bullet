@@ -1,4 +1,4 @@
-import { Menu, Notice, TextFileView, WorkspaceLeaf, setIcon } from "obsidian";
+import { Menu, Notice, TextFileView, WorkspaceLeaf } from "obsidian";
 import {
 	DAY_INITIALS,
 	DAY_NAMES,
@@ -15,6 +15,7 @@ import {
 import { parseNote, readExtraFrontmatter, serializeNote } from "./serialize";
 import { InkLayer, InkMode } from "./inklayer";
 import { addDays, parseISODate } from "./date";
+import { bulletIcon } from "./icons";
 import type BulletPlugin from "./main";
 
 const PROJECT_COLORS = [
@@ -28,6 +29,12 @@ const PROJECT_COLORS = [
 ];
 
 const PEN_WIDTH_STEPS = [1.4, 2.4, 4, 6.5];
+
+/** Zoom steps for the toolbar control, as percentages. */
+export const SCALE_STEPS = [70, 80, 90, 100, 110, 125, 140, 160, 180, 200];
+
+/** However fast edits arrive, never leave one unwritten longer than this. */
+const SAVE_MAX_WAIT = 8000;
 
 export class BulletView extends TextFileView {
 	plugin: BulletPlugin;
@@ -51,6 +58,12 @@ export class BulletView extends TextFileView {
 	private penWidth: number;
 	private mode: InkMode = "off";
 	private notesOpen = false;
+	private zoomValueEl: HTMLElement | null = null;
+
+	/** What we last handed to disk, so an echoed save costs no work. */
+	private lastSerialized = "";
+	private saveTimer = 0;
+	private savePendingSince = 0;
 
 	constructor(leaf: WorkspaceLeaf, plugin: BulletPlugin) {
 		super(leaf);
@@ -75,19 +88,21 @@ export class BulletView extends TextFileView {
 
 	getViewData(): string {
 		if (this.ink) this.model.ink = this.ink.getStrokes();
-		return serializeNote(
+		this.lastSerialized = serializeNote(
 			this.model,
 			this.extraFrontmatter,
 			this.plugin.settings.compactInk
 		);
+		return this.lastSerialized;
 	}
 
 	setViewData(data: string, clear: boolean): void {
 		if (clear) this.clear();
 
-		// A save round-trips through here; skip the rebuild if nothing moved,
-		// otherwise every keystroke would tear down the DOM under the cursor.
-		if (!clear && data === this.getViewData()) return;
+		// A save round-trips through here. Compare against what we last wrote
+		// rather than re-serialising: with a page full of ink that comparison
+		// was doing the expensive work twice on every stroke.
+		if (!clear && data === this.lastSerialized) return;
 
 		this.extraFrontmatter = readExtraFrontmatter(data);
 		this.model = parseNote(data);
@@ -109,6 +124,7 @@ export class BulletView extends TextFileView {
 	}
 
 	async onClose(): Promise<void> {
+		this.flushSave();
 		this.ink?.destroy();
 		this.ink = null;
 	}
@@ -131,7 +147,39 @@ export class BulletView extends TextFileView {
 		}
 	}
 
+	/**
+	 * Coalesce writes. Ink waits longer than typing: a stroke ends every time
+	 * the pen lifts, and serialising the page between letters is what made
+	 * handwriting feel like it was stalling.
+	 */
+	private scheduleSave(delay: number): void {
+		const now = Date.now();
+		if (!this.savePendingSince) this.savePendingSince = now;
+
+		// Debouncing alone would let a long unbroken run of writing defer the
+		// save forever, so cap how long an edit may sit unwritten.
+		const remaining = Math.max(0, this.savePendingSince + SAVE_MAX_WAIT - now);
+		window.clearTimeout(this.saveTimer);
+		this.saveTimer = window.setTimeout(() => {
+			this.saveTimer = 0;
+			this.savePendingSince = 0;
+			this.requestSave();
+		}, Math.min(delay, remaining));
+	}
+
 	private touch(): void {
+		this.scheduleSave(500);
+	}
+
+	private touchInk(): void {
+		this.scheduleSave(1400);
+	}
+
+	private flushSave(): void {
+		if (!this.saveTimer) return;
+		window.clearTimeout(this.saveTimer);
+		this.saveTimer = 0;
+		this.savePendingSince = 0;
 		this.requestSave();
 	}
 
@@ -140,6 +188,31 @@ export class BulletView extends TextFileView {
 			"bullet-own-theme",
 			!this.plugin.settings.useThemeColors
 		);
+		this.applyScale();
+	}
+
+	/** The whole page is sized off this one number. */
+	applyScale(): void {
+		const scale = this.plugin.settings.uiScale / 100;
+		this.contentEl.style.setProperty("--bl-scale", String(scale));
+		this.zoomValueEl?.setText(`${this.plugin.settings.uiScale}%`);
+	}
+
+	private async setScale(percent: number): Promise<void> {
+		const clamped = Math.max(50, Math.min(250, Math.round(percent)));
+		this.plugin.settings.uiScale = clamped;
+		this.applyScale();
+		await this.plugin.saveSettings();
+	}
+
+	private stepScale(direction: 1 | -1): void {
+		const current = this.plugin.settings.uiScale;
+		const steps = SCALE_STEPS;
+		const next =
+			direction > 0
+				? steps.find((v) => v > current) ?? steps[steps.length - 1]
+				: [...steps].reverse().find((v) => v < current) ?? steps[0];
+		void this.setScale(next);
 	}
 
 	// -- rendering ---------------------------------------------------------
@@ -153,6 +226,7 @@ export class BulletView extends TextFileView {
 		this.ink?.destroy();
 		this.ink = null;
 
+		this.zoomValueEl = null;
 		this.toolbarEl = root.createDiv({ cls: "bl-toolbar" });
 		this.renderToolbar(this.toolbarEl);
 
@@ -192,18 +266,28 @@ export class BulletView extends TextFileView {
 		);
 		this.titleEl = left.createDiv({ cls: "bl-week-title", text: this.model.title });
 		this.iconButton(left, "chevron-right", "Next week", () => this.stepWeek(1));
-		this.iconButton(left, "calendar-check", "This week", () =>
+		this.iconButton(left, "calendar", "This week", () =>
 			this.plugin.openWeekFor(new Date())
 		);
 
 		const right = bar.createDiv({ cls: "bl-toolbar-group bl-toolbar-right" });
 
+		const zoom = right.createDiv({ cls: "bl-zoom" });
+		this.iconButton(zoom, "minus", "Smaller", () => this.stepScale(-1));
+		this.zoomValueEl = zoom.createEl("button", {
+			cls: "bl-zoom-value",
+			text: `${this.plugin.settings.uiScale}%`,
+		});
+		this.zoomValueEl.setAttr("aria-label", "Reset size to 100%");
+		this.zoomValueEl.onclick = () => void this.setScale(100);
+		this.iconButton(zoom, "plus", "Larger", () => this.stepScale(1));
+
 		const typeBtn = right.createEl("button", { cls: "bl-mode-btn" });
-		setIcon(typeBtn.createSpan(), "type");
+		bulletIcon(typeBtn.createSpan(), "type");
 		typeBtn.createSpan({ text: "Type" });
 
 		const drawBtn = right.createEl("button", { cls: "bl-mode-btn" });
-		setIcon(drawBtn.createSpan(), "pen-line");
+		bulletIcon(drawBtn.createSpan(), "pen");
 		drawBtn.createSpan({ text: "Draw" });
 
 		const syncModeButtons = () => {
@@ -274,9 +358,9 @@ export class BulletView extends TextFileView {
 			paintSwatches();
 			syncModeButtons();
 		});
-		this.iconButton(tools, "undo-2", "Undo stroke", () => this.ink?.undo());
-		this.iconButton(tools, "redo-2", "Redo stroke", () => this.ink?.redo());
-		this.iconButton(tools, "trash-2", "Clear all ink", () => {
+		this.iconButton(tools, "undo", "Undo stroke", () => this.ink?.undo());
+		this.iconButton(tools, "redo", "Redo stroke", () => this.ink?.redo());
+		this.iconButton(tools, "trash", "Clear all ink", () => {
 			if (!this.ink?.canUndo()) return;
 			this.ink.clear();
 			new Notice("Ink cleared — undo restores it");
@@ -289,7 +373,7 @@ export class BulletView extends TextFileView {
 			fingerDraw: this.plugin.settings.fingerDraw,
 			color: this.penColor,
 			width: this.penWidth,
-			onChange: () => this.touch(),
+			onChange: () => this.touchInk(),
 		});
 		this.ink.setStrokes(this.model.ink);
 		this.ink.observe(this.pageEl, this.scrollEl);
@@ -403,7 +487,7 @@ export class BulletView extends TextFileView {
 			head.createSpan({ cls: "bl-day-date", text: this.dateLabel(column) });
 
 			const add = head.createEl("button", { cls: "bl-day-add" });
-			setIcon(add, "plus");
+			bulletIcon(add, "plus");
 			add.setAttr("aria-label", `Add a meeting on ${DAY_NAMES[day]}`);
 			add.onclick = () => {
 				items.push({ id: uid("m"), time: "", text: "" });
@@ -584,7 +668,7 @@ export class BulletView extends TextFileView {
 		});
 
 		const addRow = host.createEl("button", { cls: "bl-add-inline" });
-		setIcon(addRow.createSpan(), "plus");
+		bulletIcon(addRow.createSpan(), "plus");
 		addRow.createSpan({ text: "Add habit" });
 		addRow.onclick = () => {
 			this.model.habits.push({ name: "", cells: ["", "", "", "", "", "", ""] });
@@ -637,7 +721,7 @@ export class BulletView extends TextFileView {
 			});
 
 			const add = col.createEl("button", { cls: "bl-time-add" });
-			setIcon(add, "plus");
+			bulletIcon(add, "plus");
 			add.setAttr("aria-label", `Log a block on ${DAY_NAMES[day]}`);
 			add.onclick = (e) => this.pickProject(e, day);
 
@@ -664,7 +748,7 @@ export class BulletView extends TextFileView {
 		});
 
 		const addProject = legend.createEl("button", { cls: "bl-add-inline" });
-		setIcon(addProject.createSpan(), "plus");
+		bulletIcon(addProject.createSpan(), "plus");
 		addProject.createSpan({ text: "Project" });
 		addProject.onclick = () => {
 			this.model.time.push({ project: "", blocks: [0, 0, 0, 0, 0, 0, 0] });
@@ -706,7 +790,7 @@ export class BulletView extends TextFileView {
 
 		const toggle = strip.createEl("button", { cls: "bl-notes-toggle" });
 		const caret = toggle.createSpan({ cls: "bl-notes-caret" });
-		setIcon(caret, "chevron-right");
+		bulletIcon(caret, "chevron-right");
 		toggle.createSpan({ cls: "bl-notes-title", text: "Notes" });
 		const preview = toggle.createSpan({ cls: "bl-notes-preview" });
 
@@ -762,7 +846,7 @@ export class BulletView extends TextFileView {
 		box.setAttr("role", "checkbox");
 		box.setAttr("aria-checked", String(checked));
 		box.toggleClass("is-checked", checked);
-		setIcon(box.createSpan({ cls: "bl-check-mark" }), "check");
+		bulletIcon(box.createSpan({ cls: "bl-check-mark" }), "check");
 		box.onclick = () => {
 			checked = !checked;
 			box.toggleClass("is-checked", checked);
@@ -774,7 +858,7 @@ export class BulletView extends TextFileView {
 
 	private deleteButton(parent: HTMLElement, onClick: () => void): HTMLElement {
 		const btn = parent.createEl("button", { cls: "bl-del" });
-		setIcon(btn, "x");
+		bulletIcon(btn, "x");
 		btn.setAttr("aria-label", "Delete");
 		btn.onclick = onClick;
 		return btn;
@@ -782,7 +866,7 @@ export class BulletView extends TextFileView {
 
 	private addButton(parent: HTMLElement, label: string, onClick: () => void): void {
 		const btn = parent.createEl("button", { cls: "bl-add-inline" });
-		setIcon(btn.createSpan(), "plus");
+		bulletIcon(btn.createSpan(), "plus");
 		btn.createSpan({ text: label });
 		btn.onclick = onClick;
 	}
@@ -794,7 +878,7 @@ export class BulletView extends TextFileView {
 		onClick: () => void
 	): HTMLElement {
 		const btn = parent.createEl("button", { cls: "bl-icon-btn" });
-		setIcon(btn, icon);
+		bulletIcon(btn, icon);
 		btn.setAttr("aria-label", label);
 		btn.onclick = onClick;
 		return btn;

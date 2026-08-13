@@ -26,6 +26,8 @@ landscape is much more comfortable.
   varies the stroke width. A finger scrolls instead of drawing, so your palm
   never leaves a mark.
 - **Notes** — a strip along the foot, folded away until you want it.
+- **Zoom** — − and + in the toolbar resize the whole page; tap the percentage to
+  go back to 100%. The setting is remembered.
 
 Everything is stored as ordinary markdown, so the page stays searchable and
 readable outside the plugin.
@@ -102,9 +104,10 @@ Fri | 14:00 | CL Show & Tell
 **Ink** — pen colours, base width, finger drawing, and whether strokes are stored
 compactly or as readable JSON.
 
-**Appearance** — Bullet ships its own dark palette and uses it on every theme. If
-you'd rather it follow your theme's colours, turn on *Follow Obsidian theme
-colours*.
+**Appearance** — page size (the same control as the toolbar's − / +), and
+whether Bullet ships its own dark palette or follows your theme's
+colours. It uses its own palette on every theme unless you turn on *Follow
+Obsidian theme colours*.
 
 Habit rows and project codes seed a page only when it is created — editing them
 later won't rewrite pages you've already filled in. You can always add or rename

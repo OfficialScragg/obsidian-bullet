@@ -18,6 +18,8 @@ export interface BulletSettings {
 	fingerDraw: boolean;
 	useThemeColors: boolean;
 	compactInk: boolean;
+	/** Page zoom as a percentage; also adjustable from the toolbar. */
+	uiScale: number;
 }
 
 export const DEFAULT_SETTINGS: BulletSettings = {
@@ -36,6 +38,7 @@ export const DEFAULT_SETTINGS: BulletSettings = {
 	fingerDraw: false,
 	useThemeColors: false,
 	compactInk: true,
+	uiScale: 100,
 };
 
 function parseList(raw: string): string[] {
@@ -279,6 +282,34 @@ export class BulletSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl).setName("Appearance").setHeading();
+
+		new Setting(containerEl)
+			.setName("Page size")
+			.setDesc(
+				"How large everything on the page is drawn. The − and + buttons in the page's own toolbar change this too."
+			)
+			.addSlider((sl) =>
+				sl
+					.setLimits(50, 250, 5)
+					.setDynamicTooltip()
+					.setValue(this.plugin.settings.uiScale)
+					.onChange(async (v) => {
+						this.plugin.settings.uiScale = v;
+						await this.plugin.saveSettings();
+						this.plugin.refreshAllViews();
+					})
+			)
+			.addExtraButton((b) =>
+				b
+					.setIcon("reset")
+					.setTooltip("Back to 100%")
+					.onClick(async () => {
+						this.plugin.settings.uiScale = 100;
+						await this.plugin.saveSettings();
+						this.plugin.refreshAllViews();
+						this.display();
+					})
+			);
 
 		new Setting(containerEl)
 			.setName("Follow Obsidian theme colours")
