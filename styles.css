@@ -63,6 +63,21 @@
 	--bl-done: #565d6d;
 }
 
+/* Obsidian gives buttons and fields a minimum tap size, which on mobile is
+   taller than these controls are wide — that is what turned the square
+   checkbox into a rectangle. Bullet sets its own sizes, so the minimums go. */
+.bullet-view button,
+.bullet-view input,
+.bullet-view textarea {
+	min-width: 0;
+	min-height: 0;
+	font-family: inherit;
+}
+
+.bullet-view button {
+	line-height: 1;
+}
+
 /* Small controls are square: equal sides, and aspect-ratio to hold it even
    when a flex row would rather stretch them. */
 .bullet-view .bl-check,
@@ -76,6 +91,8 @@
 .bullet-view .bl-day-add {
 	aspect-ratio: 1;
 	flex: 0 0 auto;
+	min-width: 0;
+	min-height: 0;
 }
 
 /* Every icon in the page is an inline SVG Bullet draws itself. */
@@ -846,7 +863,11 @@
 }
 
 .bullet-view .bl-time-block {
-	width: 100%;
+	/* Half the width of the column, centred: the blocks shrink and the space
+	   they give up becomes the gaps, so the row still spans the grid. */
+	width: 50%;
+	max-width: 1.9em;
+	justify-self: center;
 	aspect-ratio: 1;
 	height: auto;
 	padding: 0;
