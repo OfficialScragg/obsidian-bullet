@@ -2,8 +2,8 @@
 <html><head><meta charset="utf-8"><title>ink test</title>
 <style>
  html,body{margin:0;background:#0b0c0f;color:#ddd;font:12px monospace}
- #stage{position:fixed;top:400px;left:0;width:600px;height:220px}
- #out{white-space:pre;padding:8px}
+ #stage{position:fixed;top:0;left:0;width:600px;height:700px}
+ #out{white-space:pre;padding:8px;position:relative;z-index:2}
 </style></head>
 <body>
 <pre id="out">running…</pre>
@@ -173,24 +173,24 @@ async function drawLine(y, n = 30, id = pid) {
   ink.setMode('draw');
   const beforeLost = ink.getStrokes().length;
   // no pointerdown at all: the pen is simply already on the glass and moving
-  send('pointermove', 300, 450, { id: 60, buttons: 1 });
-  send('pointermove', 340, 450, { id: 60, buttons: 1 });
-  send('pointermove', 380, 450, { id: 60, buttons: 1 });
+  send('pointermove', 300, 300, { id: 60, buttons: 1 });
+  send('pointermove', 340, 300, { id: 60, buttons: 1 });
+  send('pointermove', 380, 300, { id: 60, buttons: 1 });
   await frame();
-  send('pointerup', 380, 450, { id: 60 });
+  send('pointerup', 380, 300, { id: 60 });
   check('a stroke with no pointerdown is recovered', ink.getStrokes().length, beforeLost + 1);
   check('the recovered stroke has its points',
     ink.getStrokes()[ink.getStrokes().length - 1].points.length >= 2, true);
 
   // a hovering pen (no contact) must not start anything
   const beforeHover = ink.getStrokes().length;
-  send('pointermove', 300, 500, { id: 61, buttons: 0 });
-  send('pointermove', 340, 500, { id: 61, buttons: 0 });
+  send('pointermove', 300, 350, { id: 61, buttons: 0 });
+  send('pointermove', 340, 350, { id: 61, buttons: 0 });
   await frame();
   check('a hovering pen does not draw', ink.getStrokes().length, beforeHover);
 
   const beforeOutside = ink.getStrokes().length;
-  send('pointermove', 300, 100, { id: 62, buttons: 1 });
+  send('pointermove', 900, 100, { id: 62, buttons: 1 });
   await frame();
   check('a pen outside the canvas does not draw', ink.getStrokes().length, beforeOutside);
 
@@ -215,6 +215,22 @@ async function drawLine(y, n = 30, id = pid) {
   pid = 4;
   await drawLine(170, 10, 4);
   check('cache still correct after a rebuild then append', ink.encodedInk(true), full());
+
+  // --- a canvas that moved without resizing must still take the pen -------
+  ink.setMode('draw');
+  const beforeMove = ink.getStrokes().length;
+  // shift the stage: same size, new position, no resize notification
+  stage.style.top = '100px';
+  send('pointerdown', 200, 160, { id: 70 });
+  send('pointermove', 240, 160, { id: 70 });
+  send('pointermove', 280, 160, { id: 70 });
+  await frame();
+  send('pointerup', 280, 160, { id: 70 });
+  check('a moved canvas still draws', ink.getStrokes().length, beforeMove + 1);
+  const moved = ink.getStrokes()[ink.getStrokes().length - 1];
+  check('the moved stroke lands in the right place',
+    Math.round(moved.points[0].y), Math.round((160 - 100) / (stage.clientWidth / 1000)));
+  stage.style.top = '0px';
 
   // --- the pointer log must record what actually happened ----------------
   const trace = ink.getTrace().join('\n');

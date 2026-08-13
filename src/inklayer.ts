@@ -10,8 +10,6 @@ export interface InkLayerOptions {
 	/** Upper bound on the canvas backing-store scale. */
 	maxDpr: number;
 	onChange: () => void;
-	/** Reports how the last stroke performed, for the on-screen readout. */
-	onLatency?: (penMs: number, frameMs: number) => void;
 }
 
 const MAX_DPR = 2;
@@ -96,7 +94,13 @@ export class InkLayer {
 		// mid-stroke — the spec releases it whenever the capturing element
 		// stops being hit-testable — and anything listening on the canvas
 		// alone simply stops hearing about a pen that is still on the glass.
-		this.canvas.addEventListener("pointerdown", this.onPointerDown);
+		// pointerdown is bound to the window as well, and whether it counts is
+		// decided by geometry rather than by which element won the hit test.
+		// A pen resting on the page must start a stroke even when something
+		// else is on top, or the canvas is momentarily un-hit-testable.
+		window.addEventListener("pointerdown", this.onPointerDown, {
+			passive: false,
+		});
 		window.addEventListener("pointermove", this.onPointerMove, {
 			passive: false,
 		});
@@ -117,13 +121,22 @@ export class InkLayer {
 		this.pageScroller = scroller;
 		this.resizeObserver = new ResizeObserver(() => this.resize(target));
 		this.resizeObserver.observe(target);
+		window.addEventListener("resize", this.onWindowChange);
+		window.addEventListener("scroll", this.onWindowChange, true);
 		this.resize(target);
 	}
 
+	private onWindowChange = (): void => {
+		this.refreshOrigin();
+	};
+
 	destroy(): void {
+		window.removeEventListener("pointerdown", this.onPointerDown);
 		window.removeEventListener("pointermove", this.onPointerMove);
 		window.removeEventListener("pointerup", this.onPointerUp);
 		window.removeEventListener("pointercancel", this.onPointerUp);
+		window.removeEventListener("resize", this.onWindowChange);
+		window.removeEventListener("scroll", this.onWindowChange, true);
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = null;
 		if (this.frameHandle) cancelAnimationFrame(this.frameHandle);
@@ -327,6 +340,10 @@ export class InkLayer {
 		const width = target.clientWidth;
 		const height = target.clientHeight;
 		if (width <= 0 || height <= 0) return;
+		// The canvas can move without changing size — the keyboard opening, the
+		// toolbar rewrapping — so the origin is re-read on every notification,
+		// not only when a resize is detected.
+		this.refreshOrigin();
 		if (width === this.cssWidth && height === this.cssHeight) return;
 
 		this.cssWidth = width;
@@ -378,8 +395,20 @@ export class InkLayer {
 	}
 
 	private onPointerDown = (e: PointerEvent): void => {
-		if (this.mode === "off") {
-			this.log(e, "ignored: not in draw mode");
+		if (this.mode === "off") return;
+
+		// Only events over the page itself; the toolbar and the rest of the
+		// app are left alone.
+		const target = e.target as Node | null;
+		const onPage =
+			target !== null &&
+			(target === this.canvas || (this.observedTarget?.contains(target) ?? false));
+		if (!onPage) return;
+
+		// Re-read where the canvas is before judging anything against it.
+		this.refreshOrigin();
+		if (!this.isOverCanvas(e)) {
+			this.log(e, "ignored: not over the page");
 			return;
 		}
 
@@ -466,6 +495,13 @@ export class InkLayer {
 		}
 		if (this.activePointerId !== e.pointerId) {
 			if (this.isDrawingPointer(e) && e.buttons !== 0) {
+				if (this.activePointerId === null && !this.isOverCanvas(e)) {
+					// Before writing this off, make sure we know where the
+					// canvas actually is: it moves without resizing whenever
+					// the keyboard appears or the toolbar rewraps, and a stale
+					// origin would reject a pen that is squarely on the page.
+					this.refreshOrigin();
+				}
 				this.log(
 					e,
 					this.activePointerId === null
@@ -550,13 +586,6 @@ export class InkLayer {
 			if (this.frameIntervalMs.length > 60) this.frameIntervalMs.shift();
 		}
 		this.lastFrameAt = now;
-
-		if (this.opts.onLatency) {
-			this.opts.onLatency(
-				this.firstPaintMs[this.firstPaintMs.length - 1] ?? 0,
-				this.frameIntervalMs[this.frameIntervalMs.length - 1] ?? 0
-			);
-		}
 	};
 
 	private onPointerUp = (e: PointerEvent): void => {
@@ -577,6 +606,10 @@ export class InkLayer {
 		this.renderFrame();
 
 		this.activePointerId = null;
+		// Stop timing across the lift: the pause between two strokes is the
+		// writer thinking, not a stall, and counting it made the frame-gap
+		// figure meaningless.
+		this.lastFrameAt = 0;
 		this.release(e.pointerId);
 
 		if (this.mode === "erase") {

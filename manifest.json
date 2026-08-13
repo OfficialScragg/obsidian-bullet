@@ -1,7 +1,7 @@
 {
   "id": "bullet",
   "name": "Bullet",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "minAppVersion": "1.4.0",
   "description": "A weekly bullet journal page for Obsidian — tasks, meetings, events and habit trackers, with an Apple Pencil ink layer.",
   "author": "OfficialScragg",
